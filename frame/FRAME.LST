@@ -1,4 +1,4 @@
-Turbo Assembler	 Version 4.1	    02/10/25 22:25:22	    Page 1
+Turbo Assembler	 Version 4.1	    02/10/25 23:17:13	    Page 1
 frame.asm
 
 
@@ -9,68 +9,101 @@ frame.asm
       4
       5	0100  BB B800		     Start:	 mov bx, 0b800h		     ; beginnig	of video mem segment
       6	0103  8E C3				 mov es, bx
-      7	0105  BF 0200				 mov di, 0200h
-      8	0108  BE 0141r				 mov si, offset	Sequence
-      9
-     10	010B  B9 0010				 mov cx, 10h
-     11	010E  B4 04				 mov ah, 04h		     ; line color
-     12	0110  E8 0024				 call DrawLine
+      7
+      8	0105  B4 04				 mov ah, 04h		     ; frame color
+      9	0107  BF 0200				 mov di, 0200h		     ; frame start position in video mem
+     10	010A  BE 014Dr				 mov si, offset	Sequence
+     11	010D  B9 0010				 mov cx, 10h		     ; frame length
+     12	0110  BA 0006				 mov dx, 06h		     ; frame height
      13
-     14	0113  B9 0010				 mov cx, 10h
-     15	0116  D1 E1				 shl cx, 1
-     16	0118  81 C7 00A0			 add di, 0A0h
-     17	011C  2B F9				 sub di, cx
-     18	011E  D1 E9				 shr cx, 1
-     19	0120  E8 0014				 call DrawLine
-     20
-     21	0123  B9 0010				 mov cx, 10h
-     22	0126  D1 E1				 shl cx, 1
-     23	0128  81 C7 00A0			 add di, 0A0h
-     24	012C  2B F9				 sub di, cx
-     25	012E  D1 E9				 shr cx, 1
-     26	0130  E8 0004				 call DrawLine
-     27
-     28	0133  B4 4C				 mov ah, 4ch			     ; DOS Fn 4ch = exit(al)
-     29	0135  CD 21				 int 21h				     ; DOS Fn 21h = system(ah)
-     30				     ;===============================================================================================
-     31				     ==============
-     32				     ; Draws line described with 3 bytes in video mem
-     33				     ; 1 time first byte, (cx-2) times - second	byte and then third byte
-     34				     ; 121 (cx = 6) => 122221
-     35				     ; Entry:	 ah - color
-     36				     ;		 si - pointer to 3 byte	sequence
-     37				     ;		 cx - length of	the frame
-     38				     ; Exit:	 None
-     39				     ; Destr:	 si, cx
-     40				     ;===============================================================================================
-     41				     ==============
-     42	0137			     DrawLine	 proc
-     43
-     44	0137  49				 dec cx
-     45	0138  49				 dec cx
-     46
-     47	0139  AC				 lodsb	     ; reading first byte of sequance to al
-     48	013A  AB				 stosw	     ; writing to video	mem
-     49
-     50	013B  AC				 lodsb	     ; reading second byte
-     51	013C  F3> AB				 rep stosw   ; writing (cx - 2)	times to video mem
-     52
-     53	013E  AC				 lodsb	     ; reading first byte of sequance to al
-     54	013F  AB				 stosw	     ; writing to video	mem
-     55
-     56	0140  C3				 ret
-     57	0141					 endp
-Turbo Assembler	 Version 4.1	    02/10/25 22:25:22	    Page 2
+     14	0113  E8 0004				 call DrawFrame
+     15
+     16	0116  B4 4C				 mov ah, 4ch			     ; DOS Fn 4ch = exit(al)
+     17	0118  CD 21				 int 21h				     ; DOS Fn 21h = system(ah)
+     18
+     19				     ;===============================================================================================
+     20				     ==============
+     21				     ; Draws a frame in	video mem described with 9 bytes
+     22				     ; Entry:	 ah - color
+     23				     ;		 si - pointer to 9 byte	sequence
+     24				     ;		 cx - length of	the frame
+     25				     ;		 dx - height of	the frame
+     26				     ; Exit:	 None
+     27				     ; Destr:	 al, si, dx, di
+     28				     ;===============================================================================================
+     29				     ==============
+     30	011A			     DrawFrame	 proc
+     31
+     32	011A  E8 0018				 call DrawLine
+     33	011D  83 C6 03				 add si, 03h
+     34
+     35	0120  4A				 dec dx
+     36	0121  4A				 dec dx
+     37	0122			     height:
+     38	0122  E8 0010				 call DrawLine
+     39	0125  4A				 dec dx
+     40	0126  83 FA 00				 cmp dx, 0h
+     41	0129  77 F7				 ja height
+     42
+     43	012B  83 C6 03				 add si, 03h
+     44
+     45	012E  E8 0004				 call DrawLine
+     46	0131  83 C6 03				 add si, 03h
+     47
+     48	0134  C3				 ret
+     49	0135					 endp
+     50
+     51				     ;===============================================================================================
+     52				     ==============
+     53				     ; Draws line described with 3 bytes in video mem
+     54				     ; 1 time first byte, (cx-2) times - second	byte and then third byte
+     55				     ; 121 (cx = 6) => 122221
+     56				     ; Entry:	 ah - color
+     57				     ;		 si - pointer to 3 byte	sequence
+Turbo Assembler	 Version 4.1	    02/10/25 23:17:13	    Page 2
 frame.asm
 
 
 
-     58
-     59	0141  31 32 33 34 35 36	37+  Sequence: db '123456789'
-     60	      38 39
-     61
-     62				     end     Start
-Turbo Assembler	 Version 4.1	    02/10/25 22:25:22	    Page 3
+     58				     ;		 cx - length of	the frame
+     59				     ; Exit:	 None
+     60				     ; Destr:	 al, di
+     61				     ;===============================================================================================
+     62				     ==============
+     63	0135			     DrawLine	 proc
+     64
+     65	0135  56				 push si	 ; save	si
+     66	0136  51				 push cx	 ; save	cx
+     67
+     68	0137  49				 dec cx
+     69	0138  49				 dec cx
+     70
+     71	0139  AC				 lodsb		 ; reading first byte of sequance to al
+     72	013A  AB				 stosw		 ; writing to video mem
+     73
+     74	013B  AC				 lodsb		 ; reading second byte
+     75	013C  F3> AB				 rep stosw	 ; writing (cx - 2) times to video mem
+     76
+     77	013E  AC				 lodsb		 ; reading first byte of sequance to al
+     78	013F  AB				 stosw		 ; writing to video mem
+     79
+     80	0140  59				 pop cx		 ; save	cx
+     81
+     82	0141  D1 E1				 shl cx, 1	 ; shift di to the beginning of	the next string
+     83	0143  81 C7 00A0			 add di, 0A0h
+     84	0147  2B F9				 sub di, cx
+     85	0149  D1 E9				 shr cx, 1
+     86
+     87	014B  5E				 pop si		 ; save	si
+     88
+     89	014C  C3				 ret
+     90	014D					 endp
+     91
+     92	014D  31 32 33 34 35 36	37+  Sequence: db '123456789'
+     93	      38 39
+     94
+     95				     end     Start
+Turbo Assembler	 Version 4.1	    02/10/25 23:17:13	    Page 3
 Symbol Table
 
 
@@ -80,7 +113,7 @@ Symbol Name			  Type	 Value
 
 ??DATE				  Text	 "02/10/25"
 ??FILENAME			  Text	 "frame	  "
-??TIME				  Text	 "22:25:22"
+??TIME				  Text	 "23:17:13"
 ??VERSION			  Number 040A
 @32BIT				  Text	 0
 @CODE				  Text	 DGROUP
@@ -94,13 +127,15 @@ Symbol Name			  Type	 Value
 @MODEL				  Text	 1
 @STACK				  Text	 DGROUP
 @WORDSIZE			  Text	 2
-DRAWLINE			  Near	 DGROUP:0137
-SEQUENCE			  Near	 DGROUP:0141
+DRAWFRAME			  Near	 DGROUP:011A
+DRAWLINE			  Near	 DGROUP:0135
+HEIGHT				  Near	 DGROUP:0122
+SEQUENCE			  Near	 DGROUP:014D
 START				  Near	 DGROUP:0100
 
 Groups & Segments		  Bit Size Align  Combine Class
 
 DGROUP				  Group
   _DATA				  16  0000 Word	  Public  DATA
-  _TEXT				  16  014A Word	  Public  CODE
+  _TEXT				  16  0156 Word	  Public  CODE
 
