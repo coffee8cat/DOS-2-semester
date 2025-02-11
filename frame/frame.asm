@@ -5,11 +5,13 @@ org 100h
 Start:      mov bx, 0b800h              ; beginnig of video mem segment
             mov es, bx
 
+            mov cx, 30h                 ; frame length
+            mov dx, 10h                 ; frame height
+
+            call CalcFrameStart
+
             mov ah, 04h                 ; frame color
-            mov di, 0200h               ; frame start position in video mem
             mov si, offset Sequence
-            mov cx, 10h                 ; frame length
-            mov dx, 06h                 ; frame height
 
             call DrawFrame
 
@@ -17,11 +19,44 @@ Start:      mov bx, 0b800h              ; beginnig of video mem segment
             int 21h					; DOS Fn 21h = system(ah)
 
 ;=============================================================================================================
+; Calculates the start position for a frame in video mem
+; Entry:    cx - length of the frame
+;           dx - height of the frame
+; Exit:     di - pointer to a start position
+; Destr:    ax
+;=============================================================================================================
+CalcFrameStart  proc
+
+            push cx
+            push dx
+            mov ax, dx
+
+            ; 80 - cx / 2 + 160 * (14 - h / 2)
+            shr ax, 1
+
+            mov di, 50h
+            sub di, cx
+
+            sub ax, 0Eh
+            neg ax
+            shl ax, 5
+
+            mov cx, 05h
+            mul cx
+
+            add di, ax
+
+            pop dx
+            pop cx
+
+            ret
+            endp
+;=============================================================================================================
 ; Draws a frame in video mem described with 9 bytes
 ; Entry:    ah - color
 ;           si - pointer to 9 byte sequence
 ;           cx - length of the frame
-;           dx - height of the frame
+;           dl - height of the frame
 ; Exit:     None
 ; Destr:    al, si, dx, di
 ;=============================================================================================================
@@ -30,12 +65,12 @@ DrawFrame   proc
             call DrawLine
             add si, 03h
 
-            dec dx
-            dec dx
+            dec dl
+            dec dl
 height:
             call DrawLine
-            dec dx
-            cmp dx, 0h
+            dec dl
+            cmp dl, 0h
             ja height
 
             add si, 03h
