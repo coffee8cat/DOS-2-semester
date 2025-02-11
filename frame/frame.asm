@@ -2,7 +2,8 @@
 .code
 org 100h
 
-Start:      mov bx, 0b800h              ; beginnig of video mem segment
+Start:      cld
+            mov bx, 0b800h              ; beginnig of video mem segment
             mov es, bx
 
             mov cx, 30h                 ; frame length
@@ -25,7 +26,11 @@ Start:      mov bx, 0b800h              ; beginnig of video mem segment
             add di, 020h
             mov ah, 03h
             mov si, offset String
+
             call WriteString
+
+            mov di, offset String
+            call Strlen
 
             mov ah, 4ch				; DOS Fn 4ch = exit(al)
             int 21h					; DOS Fn 21h = system(ah)
@@ -148,8 +153,9 @@ DrawLine    proc
 WriteString proc
 
 ; condition check
+            mov cl, 24h
 
-condition:  cmp ds:[si], 024h    ; while (ds:[si] != '$')
+condition:  cmp ds:[si], cl    ; while (ds:[si] != '$')
             je while_end
 
             lodsb               ; al = ds:[si++]
@@ -161,8 +167,32 @@ while_end:
             ret
             endp
 
+;=============================================================================================================
+; Countes length of string ending with '$'
+; Entry:    di - pointer to a string
+; Exit:     cx - length of the string
+; Destr:    al, si, cx
+;=============================================================================================================
+Strlen  proc
+
+        cld
+
+        mov di, si
+        xor ax, ax
+        mov cx, 0FFFFh
+
+        repne scasb
+
+        neg cx
+        dec cx
+
+        ret
+        endp
+
+
 Sequence:   db '123456789'
 
-String:     db 'Hello there?', 024h
+String:     db 'Hello there?', 00h, '!!!NOTFORPRINT!!!'
+
 
 end     Start
