@@ -13,7 +13,19 @@ Start:      mov bx, 0b800h              ; beginnig of video mem segment
             mov ah, 04h                 ; frame color
             mov si, offset Sequence
 
+            push di
             call DrawFrame
+            pop di
+
+
+            add di, 0A0h
+            add di, 0A0h
+            add di, 0A0h
+            add di, 0A0h
+            add di, 020h
+            mov ah, 03h
+            mov si, offset String
+            call WriteString
 
             mov ah, 4ch				; DOS Fn 4ch = exit(al)
             int 21h					; DOS Fn 21h = system(ah)
@@ -51,16 +63,19 @@ CalcFrameStart  proc
 
             ret
             endp
+
 ;=============================================================================================================
 ; Draws a frame in video mem described with 9 bytes
 ; Entry:    ah - color
 ;           si - pointer to 9 byte sequence
 ;           cx - length of the frame
-;           dl - height of the frame
+;           dx - height of the frame
 ; Exit:     None
-; Destr:    al, si, dx, di
+; Destr:    al, si, di
 ;=============================================================================================================
 DrawFrame   proc
+
+            push dx
 
             call DrawLine
             add si, 03h
@@ -77,6 +92,8 @@ height:
 
             call DrawLine
             add si, 03h
+
+            pop dx
 
             ret
             endp
@@ -120,6 +137,32 @@ DrawLine    proc
             ret
             endp
 
-Sequence: db '123456789'
+;=============================================================================================================
+; Writes a string ending with '$' in video mem
+; Entry:    ah - color
+;           si - pointer to a string
+;           di - pointer to video mem for beginning of the string
+; Exit:     None
+; Destr:    cx, si, di
+;=============================================================================================================
+WriteString proc
+
+; condition check
+
+condition:  cmp ds:[si], 024h    ; while (ds:[si] != '$')
+            je while_end
+
+            lodsb               ; al = ds:[si++]
+            stosw               ; es:[di] = ax, di+=2
+            jmp condition
+
+while_end:
+
+            ret
+            endp
+
+Sequence:   db '123456789'
+
+String:     db 'Hello there?', 024h
 
 end     Start
