@@ -32,6 +32,9 @@ Start:      cld
             mov di, offset String
             call Strlen
 
+            mov di, offset AtoiTest
+            call atoi10
+
             mov ah, 4ch				; DOS Fn 4ch = exit(al)
             int 21h					; DOS Fn 21h = system(ah)
 
@@ -153,7 +156,7 @@ DrawLine    proc
 WriteString proc
 
 ; condition check
-            mov cl, 24h
+            mov cl, 00h
 
 condition:  cmp ds:[si], cl    ; while (ds:[si] != '$')
             je while_end
@@ -174,21 +177,64 @@ while_end:
 ; Destr:    al, si, cx
 ;=============================================================================================================
 Strlen  proc
+        push es
+        mov ax, ds
+        mov es, ax
 
-        cld
-
-        mov di, si
         xor ax, ax
-        mov cx, 0FFFFh
+        cld
+        mov cx, -1
 
         repne scasb
-
         neg cx
         dec cx
+
+        pop es
+;        xor ax, ax
+;        xor cx, cx
+;        dec di
+
+;test_condition: ; while(ds:[di] != ax) { di++ }
+;
+;        inc di
+;        inc cx
+;        cmp ds:[di], al
+;        jne test_condition
+
+;        dec cx
 
         ret
         endp
 
+;=============================================================================================================
+; Countes length of string ending with '$'
+; Entry:    di - pointer to a string with number
+; Exit:     ax - number extracted from string
+; Destr:    di, ax, dx
+;=============================================================================================================
+atoi10  proc
+
+        xor ax, ax
+        xor dx, dx
+        mov dh, '0'
+        mov bl, 0Ah
+
+test_condition2:  ; while (ds:[di] - '0' < 10) { ax = ax * 10 + [di] - '0'}
+        mul bl
+        add al, dl
+
+        mov dl, ds:[di]
+        sub dl, dh
+
+        inc di
+        cmp dl, 0Ah
+        jb test_condition2
+
+        ret
+        endp
+
+
+AtoiTest:   db '123b'
 
 Sequence:   db '123456789'
 
