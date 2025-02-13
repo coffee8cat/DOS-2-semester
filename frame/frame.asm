@@ -1,42 +1,72 @@
 .model tiny
 .code
 org 100h
+locals @@
 
-Start:      cld
-            mov bx, 0b800h              ; beginnig of video mem segment
-            mov es, bx
+Start:
+        cld
+        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
+        mov es, bx
 
-            mov cx, 30h                 ; frame length
-            mov dx, 10h                 ; frame height
+        mov di, CMD_args_start      ; pointer to command line arguments
 
-            call CalcFrameStart
+        call SkipSpaces
 
-            mov ah, 04h                 ; frame color
-            mov si, offset Sequence
+        call atoi10                 ; read frame length
+        mov cx, ax
 
-            push di
-            call DrawFrame
-            pop di
+        call SkipSpaces
+
+        call atoi10                 ; read frame height
+        mov dx, ax
+
+        call SkipSpaces
+
+        push dx
+        call atoi10
+        pop dx
+
+        mov ah, al
+
+        call SkipSpaces
+
+        push dx
+        call atoi10
+        push ax
+
+        mov dl, 9
+        mul dl
+
+        mov si, offset Sequence
+        add si, ax
+
+        pop ax
+        pop dx
+
+        call CalcFrameStart
+
+        mov ah, 04h                 ; frame color
+
+        push di
+        call DrawFrame
+        pop di
 
 
-            add di, 0A0h
-            add di, 0A0h
-            add di, 0A0h
-            add di, 0A0h
-            add di, 020h
-            mov ah, 03h
-            mov si, offset String
+        ;add di, 0A0h
+        ;add di, 0A0h
+        ;add di, 0A0h
+        ;add di, 0A0h
+        ;add di, 020h
+        ;mov ah, 03h
+        ;mov si, offset String
 
-            call WriteString
+        ;call WriteString
 
-            mov di, offset String
-            call Strlen
+        ;mov di, offset String
+        ;call Strlen
 
-            mov di, offset AtoiTest
-            call atoi10
-
-            mov ah, 4ch				; DOS Fn 4ch = exit(al)
-            int 21h					; DOS Fn 21h = system(ah)
+        mov ah, 4ch				; DOS Fn 4ch = exit(al)
+        int 21h					; DOS Fn 21h = system(ah)
 
 ;=============================================================================================================
 ; Calculates the start position for a frame in video mem
@@ -47,30 +77,30 @@ Start:      cld
 ;=============================================================================================================
 CalcFrameStart  proc
 
-            push cx
-            push dx
-            mov ax, dx
+        push cx
+        push dx
+        mov ax, dx
 
-            ; 80 - cx / 2 + 160 * (14 - h / 2)
-            shr ax, 1
+        ; 80 - cx / 2 + 160 * (14 - h / 2)
+        shr ax, 1
 
-            mov di, 50h
-            sub di, cx
+        mov di, 50h
+        sub di, cx
 
-            sub ax, 0Eh
-            neg ax
-            shl ax, 5
+        sub ax, 0Eh
+        neg ax
+        shl ax, 5
 
-            mov cx, 05h
-            mul cx
+        mov cx, 05h
+        mul cx
 
-            add di, ax
+        add di, ax
 
-            pop dx
-            pop cx
+        pop dx
+        pop cx
 
-            ret
-            endp
+        ret
+        endp
 
 ;=============================================================================================================
 ; Draws a frame in video mem described with 9 bytes
@@ -83,28 +113,28 @@ CalcFrameStart  proc
 ;=============================================================================================================
 DrawFrame   proc
 
-            push dx
+        push dx
 
-            call DrawLine
-            add si, 03h
+        call DrawLine
+        add si, 03h
 
-            dec dl
-            dec dl
+        dec dl
+        dec dl
 height:
-            call DrawLine
-            dec dl
-            cmp dl, 0h
-            ja height
+        call DrawLine
+        dec dl
+        cmp dl, 0h
+        ja height
 
-            add si, 03h
+        add si, 03h
 
-            call DrawLine
-            add si, 03h
+        call DrawLine
+        add si, 03h
 
-            pop dx
+        pop dx
 
-            ret
-            endp
+        ret
+        endp
 
 ;=============================================================================================================
 ; Draws line described with 3 bytes in video mem
@@ -118,32 +148,50 @@ height:
 ;=============================================================================================================
 DrawLine    proc
 
-            push si         ; save si
-            push cx         ; save cx
+        push si         ; save si
+        push cx         ; save cx
 
-            dec cx
-            dec cx
+        dec cx
+        dec cx
 
-            lodsb           ; reading first byte of sequance to al
-            stosw           ; writing to video mem
+        lodsb           ; reading first byte of sequance to al
+        stosw           ; writing to video mem
 
-            lodsb           ; reading second byte
-            rep stosw       ; writing (cx - 2) times to video mem
+        lodsb           ; reading second byte
+        rep stosw       ; writing (cx - 2) times to video mem
 
-            lodsb           ; reading first byte of sequance to al
-            stosw           ; writing to video mem
+        lodsb           ; reading first byte of sequance to al
+        stosw           ; writing to video mem
 
-            pop cx          ; save cx
+        pop cx          ; save cx
 
-            shl cx, 1       ; shift di to the beginning of the next string
-            add di, 0A0h
-            sub di, cx
-            shr cx, 1
+        shl cx, 1       ; shift di to the beginning of the next string
+        add di, 0A0h
+        sub di, cx
+        shr cx, 1
 
-            pop si          ; save si
+        pop si          ; save si
 
-            ret
-            endp
+        ret
+        endp
+;=============================================================================================================
+; Moves di until ds:[di] is a non-space character
+; Entry:    di - pointer to video mem for beginning of the string
+; Exit:     None
+; Destr:    di, al
+;=============================================================================================================
+SkipSpaces   proc
+
+        mov al, ' '
+        dec di
+
+test_condition_SkipSpace:
+        inc di
+        cmp ds:[di], al
+        je test_condition_SkipSpace
+
+        ret
+        endp
 
 ;=============================================================================================================
 ; Writes a string ending with '$' in video mem
@@ -155,28 +203,29 @@ DrawLine    proc
 ;=============================================================================================================
 WriteString proc
 
-; condition check
-            mov cl, 00h
+        mov cl, 00h
 
-condition:  cmp ds:[si], cl    ; while (ds:[si] != '$')
-            je while_end
+test_condition_WriteString:
+        cmp ds:[si], cl    ; while (ds:[si] != '$')
+        je while_end
 
-            lodsb               ; al = ds:[si++]
-            stosw               ; es:[di] = ax, di+=2
-            jmp condition
+        lodsb               ; al = ds:[si++]
+        stosw               ; es:[di] = ax, di+=2
+        jmp test_condition_WriteString
 
 while_end:
 
-            ret
-            endp
+        ret
+        endp
 
 ;=============================================================================================================
-; Countes length of string ending with '$'
+; Counts length of null terminated string
 ; Entry:    di - pointer to a string
 ; Exit:     cx - length of the string
 ; Destr:    al, si, cx
 ;=============================================================================================================
 Strlen  proc
+
         push es
         mov ax, ds
         mov es, ax
@@ -190,36 +239,24 @@ Strlen  proc
         dec cx
 
         pop es
-;        xor ax, ax
-;        xor cx, cx
-;        dec di
-
-;test_condition: ; while(ds:[di] != ax) { di++ }
-;
-;        inc di
-;        inc cx
-;        cmp ds:[di], al
-;        jne test_condition
-
-;        dec cx
 
         ret
         endp
 
 ;=============================================================================================================
-; Countes length of string ending with '$'
+; Reads 10-based number from 0 to 255 from a string and saves to al
 ; Entry:    di - pointer to a string with number
-; Exit:     ax - number extracted from string
-; Destr:    di, ax, dx
+; Exit:     al - number extracted from string
+; Destr:    di, ax, dx, bl
 ;=============================================================================================================
 atoi10  proc
 
         xor ax, ax
         xor dx, dx
         mov dh, '0'
-        mov bl, 0Ah
+        mov bl, 0Ah     ; 0Ah - radix of 10 digit system
 
-test_condition2:  ; while (ds:[di] - '0' < 10) { ax = ax * 10 + [di] - '0'}
+test_condition_atoi10:        ; while (ds:[di] - '0' < 10) { ax = ax * 10 + [di] - '0'}
         mul bl
         add al, dl
 
@@ -227,16 +264,48 @@ test_condition2:  ; while (ds:[di] - '0' < 10) { ax = ax * 10 + [di] - '0'}
         sub dl, dh
 
         inc di
-        cmp dl, 0Ah
-        jb test_condition2
+        cmp dl, 0Ah             ; ?  0 <= dl < 10
+        jb test_condition_atoi10
 
         ret
         endp
 
+;=============================================================================================================
+; Reads 16-based number from 0 to 255 from a string and saves to al
+; Entry:    di - pointer to a string with number
+; Exit:     ax - number extracted from string
+; Destr:    di, ax, dx
+;=============================================================================================================
+atoi16  proc
 
-AtoiTest:   db '123b'
+        xor ax, ax
+        xor dx, dx
+        mov dh, '0'
 
-Sequence:   db '123456789'
+test_condition_atoi16:  ; while (ds:[di] - '0' < 10) { ax = ax * 10 + [di] - '0'}
+        shl al, 4
+        add al, dl
+
+        mov dl, ds:[di]
+        sub dl, dh
+
+        inc di
+        cmp dl, 10h             ; 10h - radix of 16 digit system
+        jb test_condition_atoi16
+
+        ret
+        endp
+
+CMD_args_start  equ     0081h
+VideoMemSegment equ     0b800h
+
+AtoiTest:   db '12b'
+
+Sequence:   db  031h, 032h, 033h, 034h, 035h, 036h, 037h, 038h, 039h    ; 123456789 - test sequence
+            db  0dah, 0c4h, 0bfh, 0b3h, 020h, 0b3h, 0c0h, 0c4h, 0d9h    ; single line box
+            db  0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch    ; double line box
+            db  003h, 003h, 003h, 003h, 020h, 003h, 003h, 003h, 003h    ; valentine frame
+            db  006h, 006h, 006h, 005h, 0b0h, 006h, 005h, 005h, 005h    ; spades frame with shade filling
 
 String:     db 'Hello there?', 00h, '!!!NOTFORPRINT!!!'
 
