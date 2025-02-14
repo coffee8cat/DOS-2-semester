@@ -8,7 +8,7 @@ Start:
         mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
         mov es, bx
 
-        mov di, CMD_args_start      ; pointer to command line arguments
+        mov si, CMD_args_start      ; pointer to command line arguments
 
         call SkipSpaces
 
@@ -23,16 +23,16 @@ Start:
         call SkipSpaces
 
         push dx
-        call atoi10
+        call atoi16
         pop dx
 
         mov ah, al
+        push ax
 
         call SkipSpaces
 
         push dx
         call atoi10
-        push ax
 
         mov dl, 9
         mul dl
@@ -40,30 +40,36 @@ Start:
         mov si, offset Sequence
         add si, ax
 
-        pop ax
         pop dx
 
         call CalcFrameStart
+        pop ax
 
-        mov ah, 04h                 ; frame color
+        ;mov ah, 04h                 ; frame color
 
         push di
         call DrawFrame
         pop di
 
+        push ax
 
-        ;add di, 0A0h
-        ;add di, 0A0h
-        ;add di, 0A0h
-        ;add di, 0A0h
-        ;add di, 020h
-        ;mov ah, 03h
-        ;mov si, offset String
+        call SkipSpaces
 
-        ;call WriteString
+        push di
+        mov di, offset String
 
-        ;mov di, offset String
-        ;call Strlen
+        push cx
+        call Strlen
+        mov bx, cx
+
+        pop cx
+        pop di
+
+        call CalcStringStart
+
+        pop ax
+        mov si, offset String
+        call WriteString
 
         mov ah, 4ch				; DOS Fn 4ch = exit(al)
         int 21h					; DOS Fn 21h = system(ah)
@@ -98,6 +104,35 @@ CalcFrameStart  proc
 
         pop dx
         pop cx
+
+        ret
+        endp
+
+;=============================================================================================================
+; Calculates the start position for a string in video mem
+; Entry:    cx - length of the frame
+;           dx - height of the frame
+;           bx - length of the string
+; Exit:     di - pointer to a start position
+; Destr:    ax, bx, cx, dx
+;=============================================================================================================
+CalcStringStart  proc
+
+        ; di += (cx - bx) / 2 + 160 * (dx / 2)
+        shr dx, 1
+        mov ax, dx
+        shl ax, 5
+
+        sub cx, bx
+
+        mov dx, 0005h
+        mul dx
+
+        add ax, cx
+        shr ax, 1
+        shl ax, 1
+
+        add di, ax
 
         ret
         endp
@@ -176,25 +211,25 @@ DrawLine    proc
         endp
 ;=============================================================================================================
 ; Moves di until ds:[di] is a non-space character
-; Entry:    di - pointer to video mem for beginning of the string
+; Entry:    si - pointer to video mem for beginning of the string
 ; Exit:     None
-; Destr:    di, al
+; Destr:    si, al
 ;=============================================================================================================
 SkipSpaces   proc
 
         mov al, ' '
-        dec di
+        dec si
 
-test_condition_SkipSpace:
-        inc di
-        cmp ds:[di], al
-        je test_condition_SkipSpace
+@@test_condition:
+        inc si
+        cmp ds:[si], al
+        je @@test_condition
 
         ret
         endp
 
 ;=============================================================================================================
-; Writes a string ending with '$' in video mem
+; Writes a string ending with '\r' in video mem (could be set in cl - look in func)
 ; Entry:    ah - color
 ;           si - pointer to a string
 ;           di - pointer to video mem for beginning of the string
@@ -203,15 +238,15 @@ test_condition_SkipSpace:
 ;=============================================================================================================
 WriteString proc
 
-        mov cl, 00h
+        mov cl, 0Dh             ; TERMINATING SYMBOL
 
-test_condition_WriteString:
-        cmp ds:[si], cl    ; while (ds:[si] != '$')
+@@test_condition:
+        cmp ds:[si], cl         ; while (ds:[si] != '$')
         je while_end
 
-        lodsb               ; al = ds:[si++]
-        stosw               ; es:[di] = ax, di+=2
-        jmp test_condition_WriteString
+        lodsb                   ; al = ds:[si++]
+        stosw                   ; es:[di] = ax, di+=2
+        jmp @@test_condition
 
 while_end:
 
@@ -219,10 +254,10 @@ while_end:
         endp
 
 ;=============================================================================================================
-; Counts length of null terminated string
+; Counts length of '\r' terminated string
 ; Entry:    di - pointer to a string
 ; Exit:     cx - length of the string
-; Destr:    al, si, cx
+; Destr:    al, di, cx
 ;=============================================================================================================
 Strlen  proc
 
@@ -230,7 +265,7 @@ Strlen  proc
         mov ax, ds
         mov es, ax
 
-        xor ax, ax
+        mov ax, 0Dh     ; end of string
         cld
         mov cx, -1
 
@@ -245,9 +280,9 @@ Strlen  proc
 
 ;=============================================================================================================
 ; Reads 10-based number from 0 to 255 from a string and saves to al
-; Entry:    di - pointer to a string with number
+; Entry:    si - pointer to a string with number
 ; Exit:     al - number extracted from string
-; Destr:    di, ax, dx, bl
+; Destr:    si, ax, dx, bl
 ;=============================================================================================================
 atoi10  proc
 
@@ -256,25 +291,25 @@ atoi10  proc
         mov dh, '0'
         mov bl, 0Ah     ; 0Ah - radix of 10 digit system
 
-test_condition_atoi10:        ; while (ds:[di] - '0' < 10) { ax = ax * 10 + [di] - '0'}
+@@test_condition:       ; while (ds:[si] - '0' < 10) { ax = ax * 10 + ds:[si] - '0'}
         mul bl
         add al, dl
 
-        mov dl, ds:[di]
+        mov dl, ds:[si]
         sub dl, dh
 
-        inc di
+        inc si
         cmp dl, 0Ah             ; ?  0 <= dl < 10
-        jb test_condition_atoi10
+        jb @@test_condition
 
         ret
         endp
 
 ;=============================================================================================================
 ; Reads 16-based number from 0 to 255 from a string and saves to al
-; Entry:    di - pointer to a string with number
+; Entry:    si - pointer to a string with number
 ; Exit:     ax - number extracted from string
-; Destr:    di, ax, dx
+; Destr:    si, ax, dx
 ;=============================================================================================================
 atoi16  proc
 
@@ -282,16 +317,16 @@ atoi16  proc
         xor dx, dx
         mov dh, '0'
 
-test_condition_atoi16:  ; while (ds:[di] - '0' < 10) { ax = ax * 10 + [di] - '0'}
+@@test_condition:  ; while (ds:[si] - '0' < 10) { ax = ax * 10 + [si] - '0'}
         shl al, 4
         add al, dl
 
-        mov dl, ds:[di]
+        mov dl, ds:[si]
         sub dl, dh
 
-        inc di
+        inc si
         cmp dl, 10h             ; 10h - radix of 16 digit system
-        jb test_condition_atoi16
+        jb @@test_condition
 
         ret
         endp
@@ -306,8 +341,9 @@ Sequence:   db  031h, 032h, 033h, 034h, 035h, 036h, 037h, 038h, 039h    ; 123456
             db  0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch    ; double line box
             db  003h, 003h, 003h, 003h, 020h, 003h, 003h, 003h, 003h    ; valentine frame
             db  006h, 006h, 006h, 005h, 0b0h, 006h, 005h, 005h, 005h    ; spades frame with shade filling
+            db  02bh, 02dh, 02bh, 049h, 020h, 049h, 05ch, 05fh, 02fh    ; '+-+I I\_/'
 
-String:     db 'Hello there?', 00h, '!!!NOTFORPRINT!!!'
+String:     db 'Hello there?', 0Dh, '!!!NOTFORPRINT!!!'
 
 
 end     Start
