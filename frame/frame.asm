@@ -23,7 +23,7 @@ Start:
         call SkipSpaces
 
         push dx
-        call atoi16
+        call atoi16                 ; read frame color
         pop dx
 
         mov ah, al
@@ -32,31 +32,48 @@ Start:
         call SkipSpaces
 
         push dx
-        call atoi10
+        call atoi10                 ; get sequence start position
 
         mov dl, 9
         mul dl
 
+        mov bx, si
+; Custom sequence if ax == 0
+; Condition
+        cmp ax, 0h
+        ja  @@not_custom_sequence
+
+        call SkipSpaces
+        add bx, 09h                 ; move bx to position after sequence in command line args
+        jmp @@endif
+
+@@not_custom_sequence:
         mov si, offset Sequence
         add si, ax
 
+@@endif:
+
+; Making a frame --------------------------
         pop dx
 
         call CalcFrameStart
         pop ax
-
-        ;mov ah, 04h                 ; frame color
 
         push di
         call DrawFrame
         pop di
 
         push ax
+; -----------------------------------------
 
+; Prepare for writing a string ------------
+
+        mov si, bx              ; restore si
         call SkipSpaces
 
         push di
-        mov di, offset String
+
+        mov di, si
 
         push cx
         call Strlen
@@ -68,7 +85,6 @@ Start:
         call CalcStringStart
 
         pop ax
-        mov si, offset String
         call WriteString
 
         mov ah, 4ch				; DOS Fn 4ch = exit(al)
@@ -101,6 +117,9 @@ CalcFrameStart  proc
         mul cx
 
         add di, ax
+
+        shr di, 1
+        shl di, 1
 
         pop dx
         pop cx
@@ -210,7 +229,7 @@ DrawLine    proc
         ret
         endp
 ;=============================================================================================================
-; Moves di until ds:[di] is a non-space character
+; Moves si until ds:[si] is a non-space character
 ; Entry:    si - pointer to video mem for beginning of the string
 ; Exit:     None
 ; Destr:    si, al
@@ -241,7 +260,7 @@ WriteString proc
         mov cl, 0Dh             ; TERMINATING SYMBOL
 
 @@test_condition:
-        cmp ds:[si], cl         ; while (ds:[si] != '$')
+        cmp ds:[si], cl         ; while (ds:[si] != cl)
         je while_end
 
         lodsb                   ; al = ds:[si++]
@@ -317,12 +336,19 @@ atoi16  proc
         xor dx, dx
         mov dh, '0'
 
-@@test_condition:  ; while (ds:[si] - '0' < 10) { ax = ax * 10 + [si] - '0'}
+@@test_condition:  ; while (ds:[si] - '0' < 10) { ax = ax * 16 + [si] - '0'}
         shl al, 4
         add al, dl
 
         mov dl, ds:[si]
-        sub dl, dh
+        cmp dl, 'A'
+        jb  @@lower_than_A
+
+        sub dl, 'A' - '0'       ; in the end dl = dl - 'A' + 10d
+        add dl, 0Ah
+
+@@lower_than_A:
+        sub dl, dh              ; dl = dl - '0'
 
         inc si
         cmp dl, 10h             ; 10h - radix of 16 digit system
