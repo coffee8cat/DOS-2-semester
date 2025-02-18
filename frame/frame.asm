@@ -4,7 +4,6 @@ org 100h
 locals @@
 
 Start:
-        cld
         mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
         mov es, bx
 
@@ -170,7 +169,7 @@ DrawFrame   proc
         push dx
 
         call DrawLine
-        add si, 03h
+        add si, 03h             ; move to the next subsequence
 
         dec dl
         dec dl
@@ -228,6 +227,7 @@ DrawLine    proc
 
         ret
         endp
+
 ;=============================================================================================================
 ; Moves si until ds:[si] is a non-space character
 ; Entry:    si - pointer to video mem for beginning of the string
@@ -239,7 +239,7 @@ SkipSpaces   proc
         mov al, ' '
         dec si
 
-@@test_condition:
+@@test_condition:               ; while(ds:[si] != ' ') { si++ }
         inc si
         cmp ds:[si], al
         je @@test_condition
@@ -285,9 +285,9 @@ Strlen  proc
         mov es, ax
 
         mov ax, 0Dh     ; end of string
-        cld
         mov cx, -1
 
+        cld
         repne scasb
         neg cx
         dec cx
@@ -303,7 +303,7 @@ Strlen  proc
 ; Exit:     al - number extracted from string
 ; Destr:    si, ax, dx, bl
 ;=============================================================================================================
-atoi10  proc
+atoi_dec        proc
 
         xor ax, ax
         xor dx, dx
@@ -315,7 +315,7 @@ atoi10  proc
         add al, dl
 
         mov dl, ds:[si]
-        sub dl, dh
+        sub dl, dh              ; dl = dl - '0'; ASCII to actual digits
 
         inc si
         cmp dl, 0Ah             ; ?  0 <= dl < 10
@@ -330,7 +330,7 @@ atoi10  proc
 ; Exit:     ax - number extracted from string
 ; Destr:    si, ax, dx
 ;=============================================================================================================
-atoi16  proc
+atoi_hex        proc
 
         xor ax, ax
         xor dx, dx
@@ -348,7 +348,7 @@ atoi16  proc
         add dl, 0Ah
 
 @@lower_than_A:
-        sub dl, dh              ; dl = dl - '0'
+        sub dl, dh              ; dl = dl - '0'; ASCII to actual digits
 
         inc si
         cmp dl, 10h             ; 10h - radix of 16 digit system
