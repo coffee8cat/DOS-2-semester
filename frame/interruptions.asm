@@ -1,5 +1,6 @@
 .model tiny
 .code
+.386
 org 100h
 locals @@
 
@@ -32,7 +33,6 @@ Start:
         mov dx, offset EOP      ; programm size in paragraphs (16 byte)
         shr dx, 4
         inc dx
-        inc dx
         int 21h
 
 ;=============================================================================================================
@@ -62,13 +62,15 @@ R_scan_code equ 013h
         mov es:[bx], ax
 
         cmp al, R_scan_code
-        jne @@end_INT09H_StandIn
+        jne end_INT09H_StandIn
 
 ; if (Active == 1) { erase frame, Active = 0} else { Make frame, Active = 1}
         cmp byte ptr Frame_Active, 0b
         je  @@not_Active
 
-        ; erase frame
+; Frame is active, erase frame
+
+
         mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
         mov es, bx
 
@@ -76,41 +78,21 @@ R_scan_code equ 013h
         mov dx, 06h
 
         call CalcFrameStart
-
-        push di
-        add di, (50h + 04h) * 02h
-        mov word ptr FrameValuesOff, di
-        pop di
 
         mov si, offset Sequence + 9
         mov ah, 04h
 
         call DrawFrame
 
-        add di, 0A1h
-
-
         mov byte ptr Frame_Active, 0b
-        jmp @@end_INT09H_StandIn
+        jmp end_INT09H_StandIn
 
 @@not_Active:
-        ; make frame
-        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
-        mov es, bx
 
-        mov cx, 09h
-        mov dx, 06h
-
-        call CalcFrameStart
-
-        mov si, offset Sequence
-        mov ah, 04h
-
-        call DrawFrame
-
+        call MakeFrame
         mov byte ptr Frame_active, 1b
 
-@@end_INT09H_StandIn:
+end_INT09H_StandIn:
 
         pop ax
         pop es
@@ -147,6 +129,74 @@ old_int8_seg:   dw 0
 
         endp
 
+;=============================================================================================================
+; Makes a frame for displaying registers values
+;
+;
+;
+;               NOT VALID DESCRIPTION
+;
+;
+
+; Entry:    cx - length of the frame
+;           dx - height of the frame
+; Exit:     di - pointer to a start position
+; Destr:    ax
+;=============================================================================================================
+MakeFrame   proc
+
+        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
+        mov es, bx
+
+        mov cx, 09h
+        mov dx, 06h
+
+        call CalcFrameStart
+
+        push di
+
+        mov si, offset Sequence
+        mov ah, 04h
+
+        call DrawFrame
+
+        pop di
+        add di, 0A2h
+
+        mov si, offset RegName
+        call WriteString
+
+        add di, 09Ah
+
+        mov bl, 'b'
+
+        mov byte ptr cs:[offset Regname], bl
+        mov si, offset RegName
+
+        call WriteString
+
+        add di, 09Ah
+
+        mov bl, 'c'
+        mov byte ptr cs:[offset Regname], bl
+        mov si, offset RegName
+
+        call WriteString
+
+        add di, 09Ah
+
+        mov bl, 'd'
+        mov byte ptr cs:[offset Regname], bl
+        mov si, offset RegName
+
+        call WriteString
+
+
+        mov bl, 'a'
+        mov byte ptr cs:[offset Regname], bl
+
+        ret
+        endp
 
 ;=============================================================================================================
 ; Calculates the start position for a frame in video mem
@@ -264,10 +314,43 @@ DrawLine    proc
         ret
         endp
 
+;=============================================================================================================
+; Writes a string ending with '\r' in video mem (could be set in cl - look in func)
+; Entry:    ah - color
+;           si - pointer to a string
+;           di - pointer to video mem for beginning of the string
+; Exit:     None
+; Destr:    cx, si, di
+;=============================================================================================================
+WriteString proc
+
+        push ds
+        mov bx, cs
+        mov ds, bx
+
+        mov cl, 0Dh             ; TERMINATING SYMBOL
+
+@@test_condition:
+        cmp cs:[si], cl         ; while (ds:[si] != cl)
+        je while_end
+
+        lodsb                   ; al = ds:[si++]
+        stosw                   ; es:[di] = ax, di+=2
+        jmp @@test_condition
+
+while_end:
+
+        pop ds
+
+        ret
+        endp
+
 VideoMemSegment equ     0b800h
 
-Sequence:   db  0dah, 0c4h, 0bfh, 0b3h, 020h, 0b3h, 0c0h, 0c4h, 0d9h    ; single line box
-            db  02bh, 02dh, 02bh, 049h, 020h, 049h, 05ch, 05fh, 02fh    ; '+-+I I\_/'
+RegName:    db  'ax:', 0Dh, 'not for print'
+
+Sequence:   db  0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch    ; double line box
+            db  020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h    ; empty black space
 
 EOP:    db 0
 end     Start
