@@ -11,6 +11,8 @@ Start:
     ; set es[bx] to a INT09H pointer
         xor ax, ax
         mov es, ax
+        mov cx, 1234h
+        mov dx, 5678h
         mov bx, 09h * 04h
 
     ; Save old handler of INT09H
@@ -27,6 +29,8 @@ Start:
         pop ax
         mov es:[bx+2], ax
         sti
+
+        ;int 09h
 
 ; Terminate and Stay Resident--------------------------------------------------------------------------
         mov ax, 3100h           ; TSR
@@ -47,19 +51,19 @@ INT09H_StandIn  proc
 
 R_scan_code equ 013h
 
-        push bx
         push es
+
+        push dx
+        push cx
+        push bx
         push ax
 
         mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
         mov es, bx
-        mov ah, 04h
-        mov bx, 5*80*2
-
+        mov ah, 03h
 
 ; if (scan_code != scan_code(R)) { jmp to old INT09H handler}
         in al, 60h      ; load key scan code
-        mov es:[bx], ax
 
         cmp al, R_scan_code
         jne end_INT09H_StandIn
@@ -95,14 +99,17 @@ R_scan_code equ 013h
 end_INT09H_StandIn:
 
         pop ax
-        pop es
         pop bx
+        pop cx
+        pop dx
+
+        pop es
 
                 db 0eah     ; jmp code
 old_int9_ofs:   dw 0
 old_int9_seg:   dw 0
 
-FrameValuesOff: db 0h, 0h   ; start position in VideoMemSeg for writing registers values
+RegValuesOff:   db 0h, 0h   ; start position in VideoMemSeg for writing registers values
 
 Frame_Active:   db 0
         endp
@@ -190,19 +197,28 @@ MakeFrame   proc
 
         add di, 0Eh     ; 8 + 6
 
+        mov bx, sp
+        add bx, 02h
+        mov ax, word ptr ss:[bx]
         add di, 0A0h
         call itoa_hex
 
+        mov bx, sp
+        add bx, 04h
+        mov ax, word ptr ss:[bx]
         add di, 0A0h
-        mov ax, bx
         call itoa_hex
 
+        mov bx, sp
+        add bx, 06h
+        mov ax, word ptr ss:[bx]
         add di, 0A0h
-        mov ax, cx
         call itoa_hex
 
+        mov bx, sp
+        add bx, 08h
+        mov ax, word ptr ss:[bx]
         add di, 0A0h
-        mov ax, dx
         call itoa_hex
 
         ret
@@ -361,7 +377,6 @@ while_end:
 ;=============================================================================================================
 ; Reads 16-based number from 0 to 255 from a string and saves to al
 ; Entry:    di - pointer to a string to write a number
-;           cx - number to translate
 ; Exit:     None
 ; Destr:    di, si, ax, bx, cx
 ;=============================================================================================================
