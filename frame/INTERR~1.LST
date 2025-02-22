@@ -1,4 +1,4 @@
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 1
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 1
 interr~1.asm
 
 
@@ -38,7 +38,7 @@ interr~1.asm
      32					 ; Terminate and Stay									    +
      33					 Resident--------------------------------------------------------------------------
      34	    0121  B8 3100			 mov ax, 3100h		 ; TSR
-     35	    0124  BA 0284r			 mov dx, offset	EOP	 ; programm size in paragraphs (16 byte)
+     35	    0124  BA 02C7r			 mov dx, offset	EOP	 ; programm size in paragraphs (16 byte)
      36	    0127  C1 EA	04			 shr dx, 4
      37	    012A  42				 inc dx
      38	    012B  CD 21				 int 21h
@@ -60,7 +60,7 @@ interr~1.asm
      54	    012D  53				 push bx
      55	    012E  06				 push es
      56	    012F  50				 push ax
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 2
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 2
 interr~1.asm
 
 
@@ -92,12 +92,12 @@ interr~1.asm
      81	    0155  B9 0009			 mov cx, 09h
      82	    0158  BA 0006			 mov dx, 06h
      83
-     84	    015B  E8 008F			 call CalcFrameStart
+     84	    015B  E8 0095			 call CalcFrameStart
      85
-     86	    015E  BE 027Br			 mov si, offset	Sequence + 9
+     86	    015E  BE 02BEr			 mov si, offset	Sequence + 9
      87	    0161  B4 04				 mov ah, 04h
      88
-     89	    0163  E8 00A8			 call DrawFrame
+     89	    0163  E8 00AE			 call DrawFrame
      90
      91	    0166  C6 06	0180r 00		 mov byte ptr Frame_Active, 0b
      92	    016B  EB 09	90			 jmp end_INT09H_StandIn
@@ -122,7 +122,7 @@ interr~1.asm
     111	    0180  00			 Frame_Active:	 db 0
     112	    0181				 endp
     113					 ;===========================================================================================
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 3
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 3
 interr~1.asm
 
 
@@ -172,245 +172,325 @@ interr~1.asm
     156	    018F  BB B800 90			 mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
     157	    0193  8E C3				 mov es, bx
     158
-    159	    0195  B9 0009			 mov cx, 09h
-    160	    0198  BA 0006			 mov dx, 06h
-    161
-    162	    019B  E8 004F			 call CalcFrameStart
+    159					 ; Drawing Frame--------------------------------------------
+    160
+    161	    0195  B9 0009			 mov cx, 09h
+    162	    0198  BA 0006			 mov dx, 06h
     163
-    164	    019E  57				 push di
+    164	    019B  E8 0055			 call CalcFrameStart
     165
-    166	    019F  BE 0272r			 mov si, offset	Sequence
-    167	    01A2  B4 04				 mov ah, 04h
-    168
-    169	    01A4  E8 0067			 call DrawFrame
-    170
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 4
+    166	    019E  2E: 89 3E 01F1r		 mov word ptr cs:[offset DI_stored], di
+    167
+    168	    01A3  57				 push di
+    169
+    170	    01A4  BE 02B5r			 mov si, offset	Sequence
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 4
 interr~1.asm
 
 
 
-    171	    01A7  5F				 pop di
-    172	    01A8  81 C7	00A2			 add di, 0A2h
-    173
-    174	    01AC  BE 0261r			 mov si, offset	RegName
-    175	    01AF  E8 009B			 call WriteString
+    171	    01A7  B4 04				 mov ah, 04h
+    172
+    173	    01A9  E8 0068			 call DrawFrame
+    174
+    175	    01AC  5F				 pop di		 ; saved start position	of frame (left upper edge)
     176
-    177	    01B2  81 C7	009A			 add di, 09Ah
+    177					 ; Write registers names------------------------------------
     178
-    179	    01B6  B3 62				 mov bl, 'b'
+    179	    01AD  57				 push di
     180
-    181	    01B8  2E: 88 1E 0261r		 mov byte ptr cs:[offset Regname], bl
-    182	    01BD  BE 0261r			 mov si, offset	RegName
-    183
-    184	    01C0  E8 008A			 call WriteString
-    185
-    186	    01C3  81 C7	009A			 add di, 09Ah
-    187
-    188	    01C7  B3 63				 mov bl, 'c'
-    189	    01C9  2E: 88 1E 0261r		 mov byte ptr cs:[offset Regname], bl
-    190	    01CE  BE 0261r			 mov si, offset	RegName
+    181						 ; di will be shifted to the begining of the first string for first WriteString
+    182	    01AE  83 C7	08			 add di, 08h
+    183	    01B1  BE 02A4r			 mov si, offset	RegName
+    184
+    185	    01B4			 @@loop:
+    186	    01B4  81 C7	009A			 add di, 09Ah		 ; considering length_of_strings = 3, di_shift = 160 - 3 * 2
+    187	    01B8  E8 0098			 call WriteString
+    188
+    189	    01BB  2E: 38 0C			 cmp cs:[si], cl	 ; after WriteString 0Dh stored	in cl
+    190	    01BE  75 F4				 jne @@loop		 ; writing strings until '0Dh',	'0Dh' is met
     191
-    192	    01D1  E8 0079			 call WriteString
+    192	    01C0  5F				 pop di
     193
-    194	    01D4  81 C7	009A			 add di, 09Ah
+    194					 ; Writing registers values---------------------------------
     195
-    196	    01D8  B3 64				 mov bl, 'd'
-    197	    01DA  2E: 88 1E 0261r		 mov byte ptr cs:[offset Regname], bl
-    198	    01DF  BE 0261r			 mov si, offset	RegName
-    199
-    200	    01E2  E8 0068			 call WriteString
-    201
-    202
-    203	    01E5  B3 61				 mov bl, 'a'
-    204	    01E7  2E: 88 1E 0261r		 mov byte ptr cs:[offset Regname], bl
+    196	    01C1  90				 nop
+    197	    01C2  90				 nop
+    198	    01C3  90				 nop
+    199	    01C4  90				 nop
+    200
+    201	    01C5  BB 01F1r			 mov bx, offset	DI_stored
+    202	    01C8  2E: 8B 3F			 mov word ptr di, cs:[bx]
+    203
+    204	    01CB  83 C7	0E			 add di, 0Eh ; 8 + 6
     205
-    206	    01EC  C3				 ret
-    207	    01ED				 endp
+    206	    01CE  81 C7	00A0			 add di, 0A0h
+    207	    01D2  E8 0093			 call itoa_hex
     208
-    209					 ;===========================================================================================
-    210					 ==================
-    211					 ; Calculates the start	position for a frame in	video mem
-    212					 ; Entry:    cx	- length of the	frame
-    213					 ;	     dx	- height of the	frame
-    214					 ; Exit:     di	- pointer to a start position
-    215					 ; Destr:    ax
-    216					 ;===========================================================================================
-    217					 ==================
-    218	    01ED			 CalcFrameStart	 proc
-    219
-    220	    01ED  51				 push cx
-    221	    01EE  52				 push dx
-    222	    01EF  8B C2				 mov ax, dx
+    209	    01D5  81 C7	00A0			 add di, 0A0h
+    210	    01D9  8B C3				 mov ax, bx
+    211	    01DB  E8 008A			 call itoa_hex
+    212
+    213	    01DE  81 C7	00A0			 add di, 0A0h
+    214	    01E2  8B C1				 mov ax, cx
+    215	    01E4  E8 0081			 call itoa_hex
+    216
+    217	    01E7  81 C7	00A0			 add di, 0A0h
+    218	    01EB  8B C2				 mov ax, dx
+    219	    01ED  E8 0078			 call itoa_hex
+    220
+    221	    01F0  C3				 ret
+    222	    01F1				 endp
     223
-    224						 ; 80 -	cx / 2 + 160 * (14 - h / 2)
-    225	    01F1  D1 E8				 shr ax, 1
-    226
-    227	    01F3  BF 0050			 mov di, 0050h
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 5
+    224	    01F1  0000			 DI_stored: dw 0
+    225
+    226					 ;===========================================================================================
+    227					 ==================
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 5
 interr~1.asm
 
 
 
-    228	    01F6  2B F9				 sub di, cx
-    229
-    230	    01F8  2D 000E			 sub ax, 0Eh
-    231	    01FB  F7 D8				 neg ax
-    232	    01FD  C1 E0	05			 shl ax, 5
-    233
-    234	    0200  B9 0005			 mov cx, 05h
-    235	    0203  F7 E1				 mul cx
+    228					 ; Calculates the start	position for a frame in	video mem
+    229					 ; Entry:    cx	- length of the	frame
+    230					 ;	     dx	- height of the	frame
+    231					 ; Exit:     di	- pointer to a start position
+    232					 ; Destr:    ax
+    233					 ;===========================================================================================
+    234					 ==================
+    235	    01F3			 CalcFrameStart	 proc
     236
-    237	    0205  03 F8				 add di, ax
-    238
-    239	    0207  D1 EF				 shr di, 1
-    240	    0209  D1 E7				 shl di, 1
-    241
-    242	    020B  5A				 pop dx
-    243	    020C  59				 pop cx
-    244
-    245	    020D  C3				 ret
-    246	    020E				 endp
-    247
-    248
-    249					 ;===========================================================================================
-    250					 ==================
-    251					 ; Draws a frame in video mem described	with 9 bytes
-    252					 ; Entry:    ah	- color
-    253					 ;	     si	- pointer to 9 byte sequence
-    254					 ;	     cx	- length of the	frame
-    255					 ;	     dx	- height of the	frame
-    256					 ; Exit:     None
-    257					 ; Destr:    al, si, di
-    258					 ;===========================================================================================
-    259					 ==================
-    260	    020E			 DrawFrame   proc
+    237	    01F3  51				 push cx
+    238	    01F4  52				 push dx
+    239	    01F5  8B C2				 mov ax, dx
+    240
+    241						 ; di =	(80 - cx / 2 + 160 * (14 - dx /	2)) / 2	* 2
+    242	    01F7  D1 E8				 shr ax, 1
+    243
+    244	    01F9  BF 0050			 mov di, 0050h
+    245	    01FC  2B F9				 sub di, cx
+    246
+    247	    01FE  2D 000E			 sub ax, 0Eh
+    248	    0201  F7 D8				 neg ax
+    249	    0203  C1 E0	05			 shl ax, 5
+    250
+    251	    0206  B9 0005			 mov cx, 05h
+    252	    0209  F7 E1				 mul cx
+    253
+    254	    020B  03 F8				 add di, ax
+    255
+    256	    020D  D1 EF				 shr di, 1		 ; round to a multiple of 2
+    257	    020F  D1 E7				 shl di, 1
+    258
+    259	    0211  5A				 pop dx
+    260	    0212  59				 pop cx
     261
-    262	    020E  52				 push dx
-    263	    020F  1E				 push ds
-    264	    0210  8C CB				 mov bx, cs
-    265	    0212  8E DB				 mov ds, bx
-    266
-    267	    0214  E8 001D			 call DrawLine
-    268	    0217  83 C6	03			 add si, 03h		 ; move	to the next subsequence
-    269
-    270	    021A  FE CA				 dec dl
-    271	    021C  FE CA				 dec dl
-    272	    021E			 height:
-    273	    021E  E8 0013			 call DrawLine
-    274	    0221  FE CA				 dec dl
-    275	    0223  80 FA	00			 cmp dl, 0h
-    276	    0226  77 F6				 ja height
-    277
-    278	    0228  83 C6	03			 add si, 03h
-    279
-    280	    022B  E8 0006			 call DrawLine
-    281	    022E  83 C6	03			 add si, 03h
-    282
-    283	    0231  1F				 pop ds
-    284	    0232  5A				 pop dx
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 6
+    262	    0213  C3				 ret
+    263	    0214				 endp
+    264
+    265
+    266					 ;===========================================================================================
+    267					 ==================
+    268					 ; Draws a frame in video mem described	with 9 bytes
+    269					 ; Entry:    ah	- color
+    270					 ;	     si	- pointer to 9 byte sequence
+    271					 ;	     cx	- length of the	frame
+    272					 ;	     dx	- height of the	frame
+    273					 ; Exit:     None
+    274					 ; Destr:    al, si, di
+    275					 ;===========================================================================================
+    276					 ==================
+    277	    0214			 DrawFrame   proc
+    278
+    279	    0214  52				 push dx
+    280	    0215  1E				 push ds
+    281	    0216  8C CB				 mov bx, cs
+    282	    0218  8E DB				 mov ds, bx
+    283
+    284	    021A  E8 001D			 call DrawLine
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 6
 interr~1.asm
 
 
 
-    285
-    286	    0233  C3				 ret
-    287	    0234				 endp
-    288
-    289					 ;===========================================================================================
-    290					 ==================
-    291					 ; Draws line described	with 3 bytes in	video mem
-    292					 ; 1 time first	byte, (cx-2) times - second byte and then third	byte
-    293					 ; 121 (cx = 6)	=> 122221
-    294					 ; Entry:    ah	- color
-    295					 ;	     si	- pointer to 3 byte sequence
-    296					 ;	     cx	- length of the	frame
-    297					 ; Exit:     None
-    298					 ; Destr:    al, di
-    299					 ;===========================================================================================
-    300					 ==================
-    301	    0234			 DrawLine    proc
+    285	    021D  83 C6	03			 add si, 03h		 ; move	to the next subsequence
+    286
+    287	    0220  FE CA				 dec dl
+    288	    0222  FE CA				 dec dl
+    289	    0224			 height:
+    290	    0224  E8 0013			 call DrawLine
+    291	    0227  FE CA				 dec dl
+    292	    0229  80 FA	00			 cmp dl, 0h
+    293	    022C  77 F6				 ja height
+    294
+    295	    022E  83 C6	03			 add si, 03h
+    296
+    297	    0231  E8 0006			 call DrawLine
+    298	    0234  83 C6	03			 add si, 03h
+    299
+    300	    0237  1F				 pop ds
+    301	    0238  5A				 pop dx
     302
-    303	    0234  56				 push si	 ; save	si
-    304	    0235  51				 push cx	 ; save	cx
+    303	    0239  C3				 ret
+    304	    023A				 endp
     305
-    306	    0236  49				 dec cx
-    307	    0237  49				 dec cx
-    308
-    309	    0238  FC				 cld
-    310	    0239  AC				 lodsb		 ; reading first byte of sequance to al
-    311	    023A  AB				 stosw		 ; writing to video mem
-    312
-    313	    023B  AC				 lodsb		 ; reading second byte
-    314	    023C  F3> AB			 rep stosw	 ; writing (cx - 2) times to video mem
-    315
-    316	    023E  AC				 lodsb		 ; reading first byte of sequance to al
-    317	    023F  AB				 stosw		 ; writing to video mem
-    318
-    319	    0240  59				 pop cx		 ; save	cx
-    320
-    321	    0241  D1 E1				 shl cx, 1	 ; shift di to the beginning of	the next string
-    322	    0243  81 C7	00A0			 add di, 0A0h
-    323	    0247  2B F9				 sub di, cx
-    324	    0249  D1 E9				 shr cx, 1
+    306					 ;===========================================================================================
+    307					 ==================
+    308					 ; Draws line described	with 3 bytes in	video mem
+    309					 ; 1 time first	byte, (cx-2) times - second byte and then third	byte
+    310					 ; 121 (cx = 6)	=> 122221
+    311					 ; Entry:    ah	- color
+    312					 ;	     si	- pointer to 3 byte sequence
+    313					 ;	     cx	- length of the	frame
+    314					 ; Exit:     None
+    315					 ; Destr:    al, di
+    316					 ;===========================================================================================
+    317					 ==================
+    318	    023A			 DrawLine    proc
+    319
+    320	    023A  56				 push si	 ; save	si
+    321	    023B  51				 push cx	 ; save	cx
+    322
+    323	    023C  49				 dec cx
+    324	    023D  49				 dec cx
     325
-    326	    024B  5E				 pop si		 ; save	si
-    327
-    328	    024C  C3				 ret
-    329	    024D				 endp
-    330
-    331					 ;===========================================================================================
-    332					 ==================
-    333					 ; Writes a string ending with '\r' in video mem (could	be set in cl - look in func)
-    334					 ; Entry:    ah	- color
-    335					 ;	     si	- pointer to a string
-    336					 ;	     di	- pointer to video mem for beginning of	the string
-    337					 ; Exit:     None
-    338					 ; Destr:    cx, si, di
-    339					 ;===========================================================================================
-    340					 ==================
-    341	    024D			 WriteString proc
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 7
+    326	    023E  FC				 cld
+    327	    023F  AC				 lodsb		 ; reading first byte of sequance to al
+    328	    0240  AB				 stosw		 ; writing to video mem
+    329
+    330	    0241  AC				 lodsb		 ; reading second byte
+    331	    0242  F3> AB			 rep stosw	 ; writing (cx - 2) times to video mem
+    332
+    333	    0244  AC				 lodsb		 ; reading first byte of sequance to al
+    334	    0245  AB				 stosw		 ; writing to video mem
+    335
+    336	    0246  59				 pop cx		 ; save	cx
+    337
+    338	    0247  D1 E1				 shl cx, 1	 ; shift di to the beginning of	the next string
+    339	    0249  81 C7	00A0			 add di, 0A0h
+    340	    024D  2B F9				 sub di, cx
+    341	    024F  D1 E9				 shr cx, 1
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 7
 interr~1.asm
 
 
 
     342
-    343	    024D  1E				 push ds
-    344	    024E  8C CB				 mov bx, cs
-    345	    0250  8E DB				 mov ds, bx
-    346
-    347	    0252  B1 0D				 mov cl, 0Dh		 ; TERMINATING SYMBOL
-    348
-    349	    0254			 @@test_condition:
-    350	    0254  2E: 38 0C			 cmp cs:[si], cl	 ; while (ds:[si] != cl)
-    351	    0257  74 06	90 90			 je while_end
-    352
-    353	    025B  AC				 lodsb			 ; al =	ds:[si++]
-    354	    025C  AB				 stosw			 ; es:[di] = ax, di+=2
-    355	    025D  EB F5				 jmp @@test_condition
-    356
-    357	    025F			 while_end:
-    358
-    359	    025F  1F				 pop ds
-    360
-    361	    0260  C3				 ret
-    362	    0261				 endp
+    343	    0251  5E				 pop si		 ; save	si
+    344
+    345	    0252  C3				 ret
+    346	    0253				 endp
+    347
+    348					 ;===========================================================================================
+    349					 ==================
+    350					 ; Writes a string ending with '\r' in video mem (could	be set in cl - look in func)
+    351					 ; Entry:    ah	- color
+    352					 ;	     si	- pointer to a string
+    353					 ;	     di	- pointer to video mem for beginning of	the string
+    354					 ; Exit:     None
+    355					 ; Destr:    cx, si, di
+    356					 ;===========================================================================================
+    357					 ==================
+    358	    0253			 WriteString proc
+    359
+    360	    0253  1E				 push ds
+    361	    0254  8C CB				 mov bx, cs
+    362	    0256  8E DB				 mov ds, bx
     363
-    364		  =B800			 VideoMemSegment equ	 0b800h
+    364	    0258  B1 0D				 mov cl, 0Dh		 ; TERMINATING SYMBOL
     365
-    366	    0261  61 78	3A 0D 6E 6F 74+	 RegName:    db	 'ax:',	0Dh, 'not for print'
-    367		  20 66	6F 72 20 70 72+
-    368		  69 6E	74
+    366	    025A			 @@test_condition:
+    367	    025A  2E: 38 0C			 cmp cs:[si], cl	 ; while (ds:[si] != cl)
+    368	    025D  74 06	90 90			 je while_end
     369
-    370	    0272  C9 CD	BB BA 20 BA C8+	 Sequence:   db	 0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch	 ; double line box
-    371		  CD BC
-    372	    027B  20 20	20 20 20 20 20+		     db	 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h	 ; empty black space
-    373		  20 20
-    374
-    375	    0284  00			 EOP:	 db 0
-    376					 end	 Start
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 8
+    370	    0261  AC				 lodsb			 ; al =	ds:[si++]
+    371	    0262  AB				 stosw			 ; es:[di] = ax, di+=2
+    372	    0263  EB F5				 jmp @@test_condition
+    373
+    374	    0265			 while_end:
+    375
+    376	    0265  46				 inc si
+    377	    0266  1F				 pop ds
+    378
+    379	    0267  C3				 ret
+    380	    0268				 endp
+    381
+    382					 ;===========================================================================================
+    383					 ==================
+    384					 ; Reads 16-based number from 0	to 255 from a string and saves to al
+    385					 ; Entry:    di	- pointer to a string to write a number
+    386					 ;	     cx	- number to translate
+    387					 ; Exit:     None
+    388					 ; Destr:    di, si, ax, bx, cx
+    389					 ;===========================================================================================
+    390					 ==================
+    391	    0268			 itoa_hex    proc
+    392
+    393	    0268  57				 push di
+    394
+    395						 ; bx =	ax // 16
+    396						 ; for (i =0; i	< 4; i++) { es:[di] = ax % 16, ax = ax // 16}
+    397
+    398	    0269  33 C9				 xor cx, cx
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 8
+interr~1.asm
+
+
+
+    399	    026B  BE 0294r			 mov si, offset	HexASCII
+    400
+    401	    026E			 @@for_cond_check:
+    402
+    403	    026E  83 F9	04			 cmp cx, 04h
+    404	    0271  74 1F	90 90			 je  @@for_end
+    405
+    406	    0275  8B D8				 mov bx, ax
+    407	    0277  C1 EB	04			 shr bx, 4
+    408	    027A  C1 E3	04			 shl bx, 4
+    409
+    410	    027D  56				 push si
+    411
+    412	    027E  03 F0				 add si, ax
+    413	    0280  2B F3				 sub si, bx
+    414
+    415	    0282  2B C3				 sub ax, bx
+    416	    0284  2E: 8A 04			 mov byte ptr al, cs:[si]
+    417	    0287  26: 88 05			 mov byte ptr es:[di], al
+    418	    028A  4F				 dec di
+    419	    028B  4F				 dec di
+    420	    028C  5E				 pop si
+    421
+    422	    028D  41				 inc cx
+    423	    028E  8B C3				 mov ax, bx
+    424	    0290  EB DC				 jmp @@for_cond_check
+    425
+    426	    0292			 @@for_end:
+    427
+    428	    0292  5F				 pop di
+    429
+    430	    0293  C3				 ret
+    431	    0294				 endp
+    432
+    433
+    434	    0294  30 31	32 33 34 35 36+	 HexASCII:   db	'0', '1', '2', '3', '4', '5', '6', '7'
+    435		  37
+    436	    029C  38 39	41 42 43 44 45+		     db	'8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+    437		  46
+    438
+    439		  =B800			 VideoMemSegment equ	 0b800h
+    440
+    441	    02A4  61 78	3A 0D 62 78 3A+	 RegName:    db	 'ax:',	0Dh, 'bx:', 0Dh, 'cx:',	0Dh, 'dx:', 0Dh, 0Dh
+    442		  0D 63	78 3A 0D 64 78+
+    443		  3A 0D	0D
+    444
+    445	    02B5  C9 CD	BB BA 20 BA C8+	 Sequence:   db	 0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch	 ; double line box
+    446		  CD BC
+    447	    02BE  20 20	20 20 20 20 20+		     db	 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h	 ; empty black space
+    448		  20 20
+    449
+    450	    02C7  00			 EOP:	 db 0
+    451					 end	 Start
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 9
 Symbol Table
 
 
@@ -418,14 +498,17 @@ Symbol Table
 
 Symbol Name			  Type	 Value
 
-??DATE				  Text	 "02/19/25"
+??DATE				  Text	 "02/22/25"
 ??FILENAME			  Text	 "interr~1"
-??TIME				  Text	 "19:31:27"
+??TIME				  Text	 "16:16:54"
 ??VERSION			  Number 040A
 @32BIT				  Text	 0
 @@END_INT08H_STANDIN		  Near	 DGROUP:018A
+@@FOR_COND_CHECK		  Near	 DGROUP:026E
+@@FOR_END			  Near	 DGROUP:0292
+@@LOOP				  Near	 DGROUP:01B4
 @@NOT_ACTIVE			  Near	 DGROUP:016E
-@@TEST_CONDITION		  Near	 DGROUP:0254
+@@TEST_CONDITION		  Near	 DGROUP:025A
 @CODE				  Text	 DGROUP
 @CODESIZE			  Text	 0
 @CPU				  Text	 0F0FH
@@ -437,35 +520,38 @@ Symbol Name			  Type	 Value
 @MODEL				  Text	 1
 @STACK				  Text	 DGROUP
 @WORDSIZE			  Text	 4
-CALCFRAMESTART			  Near	 DGROUP:01ED
-DRAWFRAME			  Near	 DGROUP:020E
-DRAWLINE			  Near	 DGROUP:0234
+CALCFRAMESTART			  Near	 DGROUP:01F3
+DI_STORED			  Near	 DGROUP:01F1
+DRAWFRAME			  Near	 DGROUP:0214
+DRAWLINE			  Near	 DGROUP:023A
 END_INT09H_STANDIN		  Near	 DGROUP:0176
-EOP				  Near	 DGROUP:0284
+EOP				  Near	 DGROUP:02C7
 FRAMEVALUESOFF			  Near	 DGROUP:017E
 FRAME_ACTIVE			  Near	 DGROUP:0180
-HEIGHT				  Near	 DGROUP:021E
+HEIGHT				  Near	 DGROUP:0224
+HEXASCII			  Near	 DGROUP:0294
 INT08H_STANDIN			  Near	 DGROUP:0181
 INT09H_STANDIN			  Near	 DGROUP:012D
+ITOA_HEX			  Near	 DGROUP:0268
 MAKEFRAME			  Near	 DGROUP:018F
 OLD_INT8_OFS			  Near	 DGROUP:018B
 OLD_INT8_SEG			  Near	 DGROUP:018D
 OLD_INT9_OFS			  Near	 DGROUP:017A
 OLD_INT9_SEG			  Near	 DGROUP:017C
-REGNAME				  Near	 DGROUP:0261
+REGNAME				  Near	 DGROUP:02A4
 R_SCAN_CODE			  Number 0013
-SEQUENCE			  Near	 DGROUP:0272
+SEQUENCE			  Near	 DGROUP:02B5
 START				  Near	 DGROUP:0100
 VIDEOMEMSEGMENT			  Number B800
-WHILE_END			  Near	 DGROUP:025F
-WRITESTRING			  Near	 DGROUP:024D
+WHILE_END			  Near	 DGROUP:0265
+WRITESTRING			  Near	 DGROUP:0253
 
 Groups & Segments		  Bit Size Align  Combine Class
 
 DGROUP				  Group
   _DATA				  16  0000 Word	  Public  DATA
-  _TEXT				  16  0285 Word	  Public  CODE
-Turbo Assembler	 Version 4.1	    02/19/25 19:31:27	    Page 9
+  _TEXT				  16  02C8 Word	  Public  CODE
+Turbo Assembler	 Version 4.1	    02/22/25 16:16:54	    Page 10
 Error Summary
 
 

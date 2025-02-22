@@ -148,10 +148,14 @@ MakeFrame   proc
         mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
         mov es, bx
 
+; Drawing Frame--------------------------------------------
+
         mov cx, 09h
         mov dx, 06h
 
         call CalcFrameStart
+
+        mov word ptr cs:[offset DI_stored], di
 
         push di
 
@@ -160,43 +164,51 @@ MakeFrame   proc
 
         call DrawFrame
 
+        pop di          ; saved start position of frame (left upper edge)
+
+; Write registers names------------------------------------
+
+        push di
+
+        ; di will be shifted to the begining of the first string for first WriteString
+        add di, 08h
+        mov si, offset RegName
+
+@@loop:
+        add di, 09Ah            ; considering length_of_strings = 3, di_shift = 160 - 3 * 2
+        call WriteString
+
+        cmp cs:[si], cl         ; after WriteString 0Dh stored in cl
+        jne @@loop              ; writing strings until '0Dh', '0Dh' is met
+
         pop di
-        add di, 0A2h
 
-        mov si, offset RegName
-        call WriteString
+; Writing registers values---------------------------------
 
-        add di, 09Ah
+        mov bx, offset DI_stored
+        mov word ptr di, cs:[bx]
 
-        mov bl, 'b'
+        add di, 0Eh     ; 8 + 6
 
-        mov byte ptr cs:[offset Regname], bl
-        mov si, offset RegName
+        add di, 0A0h
+        call itoa_hex
 
-        call WriteString
+        add di, 0A0h
+        mov ax, bx
+        call itoa_hex
 
-        add di, 09Ah
+        add di, 0A0h
+        mov ax, cx
+        call itoa_hex
 
-        mov bl, 'c'
-        mov byte ptr cs:[offset Regname], bl
-        mov si, offset RegName
-
-        call WriteString
-
-        add di, 09Ah
-
-        mov bl, 'd'
-        mov byte ptr cs:[offset Regname], bl
-        mov si, offset RegName
-
-        call WriteString
-
-
-        mov bl, 'a'
-        mov byte ptr cs:[offset Regname], bl
+        add di, 0A0h
+        mov ax, dx
+        call itoa_hex
 
         ret
         endp
+
+DI_stored: dw 0
 
 ;=============================================================================================================
 ; Calculates the start position for a frame in video mem
@@ -211,7 +223,7 @@ CalcFrameStart  proc
         push dx
         mov ax, dx
 
-        ; 80 - cx / 2 + 160 * (14 - h / 2)
+        ; di = (80 - cx / 2 + 160 * (14 - dx / 2)) / 2 * 2
         shr ax, 1
 
         mov di, 0050h
@@ -226,7 +238,7 @@ CalcFrameStart  proc
 
         add di, ax
 
-        shr di, 1
+        shr di, 1               ; round to a multiple of 2
         shl di, 1
 
         pop dx
@@ -340,14 +352,68 @@ WriteString proc
 
 while_end:
 
+        inc si
         pop ds
 
         ret
         endp
 
+;=============================================================================================================
+; Reads 16-based number from 0 to 255 from a string and saves to al
+; Entry:    di - pointer to a string to write a number
+;           cx - number to translate
+; Exit:     None
+; Destr:    di, si, ax, bx, cx
+;=============================================================================================================
+itoa_hex    proc
+
+        push di
+
+        ; bx = ax // 16
+        ; for (i =0; i < 4; i++) { es:[di] = ax % 16, ax = ax // 16}
+
+        xor cx, cx
+        mov si, offset HexASCII
+
+@@for_cond_check:
+
+        cmp cx, 04h
+        je  @@for_end
+
+        mov bx, ax
+        shr bx, 4
+        shl bx, 4
+
+        push si
+
+        add si, ax
+        sub si, bx
+
+        sub ax, bx
+        mov byte ptr al, cs:[si]
+        mov byte ptr es:[di], al
+        dec di
+        dec di
+        pop si
+
+        inc cx
+        mov ax, bx
+        jmp @@for_cond_check
+
+@@for_end:
+
+        pop di
+
+        ret
+        endp
+
+
+HexASCII:   db '0', '1', '2', '3', '4', '5', '6', '7'
+            db '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
+
 VideoMemSegment equ     0b800h
 
-RegName:    db  'ax:', 0Dh, 'not for print'
+RegName:    db  'ax:', 0Dh, 'bx:', 0Dh, 'cx:', 0Dh, 'dx:', 0Dh, 0Dh
 
 Sequence:   db  0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch    ; double line box
             db  020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h    ; empty black space
