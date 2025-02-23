@@ -6,6 +6,17 @@ locals @@
 
 Start:
 
+FrameColor      equ     03h
+FrameLength     equ     09h
+FrameHeight     equ     06h
+
+DisplayedRegNum equ     04h
+RegSize         equ     02h
+
+JMP_code        equ     db 0eah
+
+KeyboardPort    equ     60h
+
 ; Rewriting INT09H in Table of Interruptions-----------------------------------------------------------
 
     ; set es[bx] to a INT09H pointer
@@ -53,6 +64,8 @@ Start:
         mov es:[bx+2], ax
         sti
 
+        call PrepareToDisplay
+
 ; Terminate and Stay Resident--------------------------------------------------------------------------
         mov ax, 3100h           ; TSR
         mov dx, offset EOP      ; programm size in paragraphs (16 byte)
@@ -80,15 +93,14 @@ R_scan_code equ 013h
         push bx
         push ax
 
-        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
-        mov es, bx
-        mov ah, 03h
-
 ; if (scan_code != scan_code(R)) { jmp to old INT09H handler}
-        in al, 60h      ; load key scan code
+        in al, KeyboardPort             ; load key scan code
 
         cmp al, R_scan_code
         jne end_INT09H_StandIn
+
+        mov bx, VideoMemSegment         ; set es to the beginnig of video mem segment
+        mov es, bx
 
 ; if (Active == 1) { erase frame, Active = 0} else { Make frame, Active = 1}
         cmp byte ptr Frame_Active, 0b
@@ -96,20 +108,7 @@ R_scan_code equ 013h
 
 ; Frame is active, erase frame
 
-
-        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
-        mov es, bx
-
-        mov cx, 09h
-        mov dx, 06h
-
-        call CalcFrameStart
-
-        mov si, offset Sequence + 9
-        mov ah, 03h
-
-        call DrawFrame
-
+        call EraseFrame
         mov byte ptr Frame_Active, 0b
         jmp end_INT09H_StandIn
 
@@ -128,11 +127,9 @@ end_INT09H_StandIn:
         pop di
         pop es
 
-                db 0eah     ; jmp code
+        JMP_code
 old_int9_ofs:   dw 0
 old_int9_seg:   dw 0
-
-RegValuesOff:   db 0h, 0h   ; start position in VideoMemSeg for writing registers values
 
 Frame_Active:   db 0
         endp
@@ -153,52 +150,40 @@ INT08H_StandIn  proc
         push bx
         push ax
 
-        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
-        mov es, bx
-
         cmp byte ptr Frame_Active, 1b
         jne @@end_INT08H_StandIn
 
+        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
+        mov es, bx
 
 ; Displaying registers values------------------------------
 
-        mov bx, offset DI_stored
+        mov bx, offset RegValuesOff
         mov word ptr di, cs:[bx]
 
-        add di, 0Eh     ; 8 + 6
         mov bx, sp
+        xor cx, cx
 
-        add bx, 02h
+        mov ch, DisplayedRegNum
+@@for_cond_check:
+
+        cmp cl, ch
+        je  @@for_end
+
+        add bx, RegSize
         mov ax, word ptr ss:[bx]
         add di, 0A0h
 
         push bx
+        push cx
         call itoa_hex
+        pop cx
         pop bx
 
-        add bx, 02h
-        mov ax, word ptr ss:[bx]
-        add di, 0A0h
+        inc cl
+        jmp @@for_cond_check
 
-        push bx
-        call itoa_hex
-        pop bx
-
-        add bx, 02h
-        mov ax, word ptr ss:[bx]
-        add di, 0A0h
-
-        push bx
-        call itoa_hex
-        pop bx
-
-        add bx, 02h
-        mov ax, word ptr ss:[bx]
-        add di, 0A0h
-
-        push bx
-        call itoa_hex
-        pop bx
+@@for_end:
 
 @@end_INT08H_StandIn:
 
@@ -210,10 +195,61 @@ INT08H_StandIn  proc
         pop di
         pop es
 
-                db 0eah     ; jmp code
+        JMP_code
 old_int8_ofs:   dw 0
 old_int8_seg:   dw 0
 
+        endp
+
+;=============================================================================================================
+; Calculate and save start es:[di] position of frame and register values displaying
+; assuming es = B800h (Video Memory Segment)
+; Entry:    None
+; Exit:     None
+; Destr:    ax
+;=============================================================================================================
+PrepareToDisplay        proc
+
+
+        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
+        mov es, bx
+
+        mov cx, FrameLength
+        mov dx, FrameHeight
+
+        call CalcFrameStart
+
+        mov word ptr cs:[offset FrameOff], di
+
+        add di, 0Eh     ; 8 + 6
+        mov word ptr cs:[offset RegValuesOff], di
+
+        ret
+        endp
+
+FrameOff:       dw 0   ; frame start position in VideoMemSeg
+RegValuesOff:   dw 0   ; start position in VideoMemSeg for writing registers values
+
+;=============================================================================================================
+; Erase frame displayed on es:[offset FrameOff], filling with '0h', '20h' - space char on black
+; Entry:    None
+; Exit:     None
+; Destr:    ax
+;=============================================================================================================
+EraseFrame      proc
+
+        mov bx, offset FrameOff
+        mov word ptr di, cs:[bx]
+
+        mov si, offset Sequence + 9     ; empty space seq
+        xor ah, ah
+
+        mov cx, FrameLength
+        mov dx, FrameHeight
+
+        call DrawFrame
+
+        ret
         endp
 
 ;=============================================================================================================
@@ -237,25 +273,21 @@ MakeFrame   proc
 
 ; Drawing Frame--------------------------------------------
 
-        mov cx, 09h
-        mov dx, 06h
 
-        call CalcFrameStart
-
-        mov word ptr cs:[offset DI_stored], di
-
+        mov bx, offset FrameOff
+        mov word ptr di, cs:[bx]
         push di
 
         mov si, offset Sequence
         mov ah, 03h
 
+        mov cx, FrameLength
+        mov dx, FrameHeight
+
         call DrawFrame
 
-        pop di          ; saved start position of frame (left upper edge)
-
+        pop di
 ; Write registers names------------------------------------
-
-        push di
 
         ; di will be shifted to the begining of the first string for first WriteString
         add di, 08h
@@ -268,13 +300,8 @@ MakeFrame   proc
         cmp cs:[si], cl         ; after WriteString 0Dh stored in cl
         jne @@loop              ; writing strings until '0Dh', '0Dh' is met
 
-        pop di
-
         ret
         endp
-
-DI_stored: dw 0
-
 
 Sequence:   db  0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch    ; double line box
             db  020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h    ; empty black space
@@ -444,11 +471,12 @@ itoa_hex    proc
         ; for (i =0; i < 4; i++) { es:[di] = ax % 16, ax = ax // 16}
 
         xor cx, cx
+        mov ch, RegSize * 2
         mov si, offset HexASCII
 
 @@for_cond_check:
 
-        cmp cx, 04h
+        cmp cl, ch
         je  @@for_end
 
         mov bx, ax
@@ -467,8 +495,9 @@ itoa_hex    proc
         dec di
         pop si
 
-        inc cx
         mov ax, bx
+        shr ax, 4
+        inc cl
         jmp @@for_cond_check
 
 @@for_end:
