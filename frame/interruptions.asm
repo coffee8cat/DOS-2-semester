@@ -31,6 +31,27 @@ Start:
         sti
 
         ;int 09h
+; Rewriting INT08H in Table of Interruptions-----------------------------------------------------------
+
+    ; set es[bx] to a INT08H pointer
+        xor ax, ax
+        mov es, ax
+        mov bx, 08h * 04h
+
+    ; Save old handler of INT08H
+        mov ax, es:[bx]
+        mov word ptr old_int8_ofs, ax
+        mov ax, es:[bx+2]
+        mov word ptr old_int8_seg, ax
+
+    ; write new handler for INT08H
+    ; Forbid interrupts to avoid trying to handle interruption with wrong function address
+        cli
+        mov es:[bx], offset INT08H_StandIn
+        push cs
+        pop ax
+        mov es:[bx+2], ax
+        sti
 
 ; Terminate and Stay Resident--------------------------------------------------------------------------
         mov ax, 3100h           ; TSR
@@ -52,6 +73,7 @@ INT09H_StandIn  proc
 R_scan_code equ 013h
 
         push es
+        push di
 
         push dx
         push cx
@@ -84,7 +106,7 @@ R_scan_code equ 013h
         call CalcFrameStart
 
         mov si, offset Sequence + 9
-        mov ah, 04h
+        mov ah, 03h
 
         call DrawFrame
 
@@ -103,6 +125,7 @@ end_INT09H_StandIn:
         pop cx
         pop dx
 
+        pop di
         pop es
 
                 db 0eah     ; jmp code
@@ -122,13 +145,70 @@ Frame_Active:   db 0
 ;=============================================================================================================
 INT08H_StandIn  proc
 
+        push es
+        push di
+
+        push dx
+        push cx
+        push bx
+        push ax
+
+        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
+        mov es, bx
+
         cmp byte ptr Frame_Active, 1b
         jne @@end_INT08H_StandIn
 
-        ; display registers
 
+; Displaying registers values------------------------------
+
+        mov bx, offset DI_stored
+        mov word ptr di, cs:[bx]
+
+        add di, 0Eh     ; 8 + 6
+        mov bx, sp
+
+        add bx, 02h
+        mov ax, word ptr ss:[bx]
+        add di, 0A0h
+
+        push bx
+        call itoa_hex
+        pop bx
+
+        add bx, 02h
+        mov ax, word ptr ss:[bx]
+        add di, 0A0h
+
+        push bx
+        call itoa_hex
+        pop bx
+
+        add bx, 02h
+        mov ax, word ptr ss:[bx]
+        add di, 0A0h
+
+        push bx
+        call itoa_hex
+        pop bx
+
+        add bx, 02h
+        mov ax, word ptr ss:[bx]
+        add di, 0A0h
+
+        push bx
+        call itoa_hex
+        pop bx
 
 @@end_INT08H_StandIn:
+
+        pop ax
+        pop bx
+        pop cx
+        pop dx
+
+        pop di
+        pop es
 
                 db 0eah     ; jmp code
 old_int8_ofs:   dw 0
@@ -167,7 +247,7 @@ MakeFrame   proc
         push di
 
         mov si, offset Sequence
-        mov ah, 04h
+        mov ah, 03h
 
         call DrawFrame
 
@@ -190,41 +270,16 @@ MakeFrame   proc
 
         pop di
 
-; Writing registers values---------------------------------
-
-        mov bx, offset DI_stored
-        mov word ptr di, cs:[bx]
-
-        add di, 0Eh     ; 8 + 6
-
-        mov bx, sp
-        add bx, 02h
-        mov ax, word ptr ss:[bx]
-        add di, 0A0h
-        call itoa_hex
-
-        mov bx, sp
-        add bx, 04h
-        mov ax, word ptr ss:[bx]
-        add di, 0A0h
-        call itoa_hex
-
-        mov bx, sp
-        add bx, 06h
-        mov ax, word ptr ss:[bx]
-        add di, 0A0h
-        call itoa_hex
-
-        mov bx, sp
-        add bx, 08h
-        mov ax, word ptr ss:[bx]
-        add di, 0A0h
-        call itoa_hex
-
         ret
         endp
 
 DI_stored: dw 0
+
+
+Sequence:   db  0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch    ; double line box
+            db  020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h    ; empty black space
+
+RegName:    db  'ax:', 0Dh, 'bx:', 0Dh, 'cx:', 0Dh, 'dx:', 0Dh, 0Dh
 
 ;=============================================================================================================
 ; Calculates the start position for a frame in video mem
@@ -377,6 +432,7 @@ while_end:
 ;=============================================================================================================
 ; Reads 16-based number from 0 to 255 from a string and saves to al
 ; Entry:    di - pointer to a string to write a number
+;           ax - value to translate
 ; Exit:     None
 ; Destr:    di, si, ax, bx, cx
 ;=============================================================================================================
@@ -427,11 +483,6 @@ HexASCII:   db '0', '1', '2', '3', '4', '5', '6', '7'
             db '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 
 VideoMemSegment equ     0b800h
-
-RegName:    db  'ax:', 0Dh, 'bx:', 0Dh, 'cx:', 0Dh, 'dx:', 0Dh, 0Dh
-
-Sequence:   db  0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch    ; double line box
-            db  020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h    ; empty black space
 
 EOP:    db 0
 end     Start
