@@ -31,12 +31,13 @@ Start:
 
         mov ah, 4ch				; DOS Fn 4ch = exit(al)
         int 21h					; DOS Fn 21h = system(ah)
+
 ;=============================================================================================================
-; Prepare params and calculate the position for displaying the string centered in a frame
-; Entry:    si - pointer to string with sequence number in cmd args
-;           cx - length of the frame
-;           dx - height of the frame
-; Exit:     si - pointer to the sequence
+; Read frame length, height, color from cmd line arguments
+; Entry:    None
+; Exit:     cx - frame length
+;           dx - frame height
+;           ah - frame color
 ; Destr:    ax, bx, dx, si
 ;=============================================================================================================
 ReadCMD_args    proc
