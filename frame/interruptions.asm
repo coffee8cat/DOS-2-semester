@@ -4,74 +4,20 @@
 org 100h
 locals @@
 
-Start:
+Start:          call Main
+
+VideoMemSegment equ     0b800h
 
 FrameColor      equ     03h
 FrameLength     equ     09h
-FrameHeight     equ     06h
+FrameHeight     equ     0Fh
 
-DisplayedRegNum equ     04h
+DisplayedRegNum equ     0Dh
 RegSize         equ     02h
 
 JMP_code        equ     db 0eah
 
 KeyboardPort    equ     60h
-
-; Rewriting INT09H in Table of Interruptions-----------------------------------------------------------
-
-    ; set es[bx] to a INT09H pointer
-        xor ax, ax
-        mov es, ax
-        mov cx, 1234h
-        mov dx, 5678h
-        mov bx, 09h * 04h
-
-    ; Save old handler of INT09H
-        mov ax, es:[bx]
-        mov word ptr old_int9_ofs, ax
-        mov ax, es:[bx+2]
-        mov word ptr old_int9_seg, ax
-
-    ; write new handler for INT09H
-    ; Forbid interrupts to avoid trying to handle interruption with wrong function address
-        cli
-        mov es:[bx], offset INT09H_StandIn
-        push cs
-        pop ax
-        mov es:[bx+2], ax
-        sti
-
-        ;int 09h
-; Rewriting INT08H in Table of Interruptions-----------------------------------------------------------
-
-    ; set es[bx] to a INT08H pointer
-        xor ax, ax
-        mov es, ax
-        mov bx, 08h * 04h
-
-    ; Save old handler of INT08H
-        mov ax, es:[bx]
-        mov word ptr old_int8_ofs, ax
-        mov ax, es:[bx+2]
-        mov word ptr old_int8_seg, ax
-
-    ; write new handler for INT08H
-    ; Forbid interrupts to avoid trying to handle interruption with wrong function address
-        cli
-        mov es:[bx], offset INT08H_StandIn
-        push cs
-        pop ax
-        mov es:[bx+2], ax
-        sti
-
-        call PrepareToDisplay
-
-; Terminate and Stay Resident--------------------------------------------------------------------------
-        mov ax, 3100h           ; TSR
-        mov dx, offset EOP      ; programm size in paragraphs (16 byte)
-        shr dx, 4
-        inc dx
-        int 21h
 
 ;=============================================================================================================
 ; Called from INT09H, draws frame to display registers values (frame active) if interruption
@@ -85,13 +31,9 @@ INT09H_StandIn  proc
 
 R_scan_code equ 013h
 
-        push es
-        push di
-
-        push dx
-        push cx
-        push bx
         push ax
+        push bx
+        push es
 
 ; if (scan_code != scan_code(R)) { jmp to old INT09H handler}
         in al, KeyboardPort             ; load key scan code
@@ -99,8 +41,6 @@ R_scan_code equ 013h
         cmp al, R_scan_code
         jne end_INT09H_StandIn
 
-        mov bx, VideoMemSegment         ; set es to the beginnig of video mem segment
-        mov es, bx
 
 ; if (Active == 1) { erase frame, Active = 0} else { Make frame, Active = 1}
         cmp byte ptr Frame_Active, 0b
@@ -108,24 +48,22 @@ R_scan_code equ 013h
 
 ; Frame is active, erase frame
 
+        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
+        mov es, bx
+
         call EraseFrame
+
         mov byte ptr Frame_Active, 0b
         jmp end_INT09H_StandIn
 
 @@not_Active:
-
-        call MakeFrame
         mov byte ptr Frame_active, 1b
 
 end_INT09H_StandIn:
 
-        pop ax
-        pop bx
-        pop cx
-        pop dx
-
-        pop di
         pop es
+        pop bx
+        pop ax
 
         JMP_code
 old_int9_ofs:   dw 0
@@ -142,9 +80,14 @@ Frame_Active:   db 0
 ;=============================================================================================================
 INT08H_StandIn  proc
 
+        push ss
         push es
-        push di
+        push ds
+        push sp
 
+        push bp
+        push di
+        push si
         push dx
         push cx
         push bx
@@ -153,34 +96,44 @@ INT08H_StandIn  proc
         cmp byte ptr Frame_Active, 1b
         jne @@end_INT08H_StandIn
 
-        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
+        mov bx, sp                      ; restore sp value in stack (sp changed due to several pushes)
+        add bx, 0Eh                     ; 2 * num of pushes after 'push sp'
+        mov ax, bx
+        add ax, 0Eh                     ; 2 * num of pushes before 'push sp' (including ip, cs, flags)
+        mov word ptr ss:[bx], ax
+
+        mov bx, VideoMemSegment         ; set es to the beginnig of video mem segment
         mov es, bx
 
 ; Displaying registers values------------------------------
+
+        call MakeFrame
 
         mov bx, offset RegValuesOff
         mov word ptr di, cs:[bx]
 
         mov bx, sp
+        dec bx
+        dec bx                          ; to compensate bx+2 before every iteration
         xor cx, cx
 
         mov ch, DisplayedRegNum
 @@for_cond_check:
 
-        cmp cl, ch
+        cmp cl, ch                      ; for (cl = 0; cl < (ch = DisplayedRegNum); cl++)
         je  @@for_end
 
-        add bx, RegSize
-        mov ax, word ptr ss:[bx]
-        add di, 0A0h
+        add bx, RegSize                 ; bx += Regsize
+        mov ax, word ptr ss:[bx]        ; ax = ss:[bx]
+        add di, 0A0h                    ; di += 10
 
         push bx
         push cx
-        call itoa_hex
+        call itoa_hex                   ; display ax value in videomem
         pop cx
         pop bx
 
-        inc cl
+        inc cl                          ; cl++
         jmp @@for_cond_check
 
 @@for_end:
@@ -192,8 +145,14 @@ INT08H_StandIn  proc
         pop cx
         pop dx
 
+        pop si
         pop di
+
+        pop bp
+        pop ds                          ; do not pop sp!!! - there is stored sp of interrupted function
+        pop ds
         pop es
+        pop ss
 
         JMP_code
 old_int8_ofs:   dw 0
@@ -217,7 +176,7 @@ PrepareToDisplay        proc
         mov cx, FrameLength
         mov dx, FrameHeight
 
-        call CalcFrameStart
+        call CalcFrameStart         ; Position for centered frame
 
         mov word ptr cs:[offset FrameOff], di
 
@@ -242,7 +201,7 @@ EraseFrame      proc
         mov word ptr di, cs:[bx]
 
         mov si, offset Sequence + 9     ; empty space seq
-        xor ah, ah
+        xor ah, ah                      ; set background color to black
 
         mov cx, FrameLength
         mov dx, FrameHeight
@@ -253,17 +212,14 @@ EraseFrame      proc
         endp
 
 ;=============================================================================================================
-; Makes a frame for displaying registers values
+; Makes a frame for displaying registers values in video memory or erases it if already displaying
+; FrameLength and FrameHeight are set as const
+; Position for frame (centered) is calculated before going resident
 ;
+; !!! MAKE SURE THAT REGNAME ENDS WITH DOUBLE '0Dh' !!!
 ;
-;
-;               NOT VALID DESCRIPTION
-;
-;
-
-; Entry:    cx - length of the frame
-;           dx - height of the frame
-; Exit:     di - pointer to a start position
+; Entry:    None
+; Exit:     None
 ; Destr:    ax
 ;=============================================================================================================
 MakeFrame   proc
@@ -274,7 +230,7 @@ MakeFrame   proc
 ; Drawing Frame--------------------------------------------
 
 
-        mov bx, offset FrameOff
+        mov bx, offset FrameOff         ; load precalculated frame offset
         mov word ptr di, cs:[bx]
         push di
 
@@ -306,7 +262,9 @@ MakeFrame   proc
 Sequence:   db  0c9h, 0cdh, 0bbh, 0bah, 020h, 0bah, 0c8h, 0cdh, 0bch    ; double line box
             db  020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h, 020h    ; empty black space
 
-RegName:    db  'ax:', 0Dh, 'bx:', 0Dh, 'cx:', 0Dh, 'dx:', 0Dh, 0Dh
+RegName:    db  'ax:', 0Dh, 'bx:', 0Dh, 'cx:', 0Dh, 'dx:', 0Dh, 'si:', 0Dh
+            db  'di:', 0Dh, 'bp:', 0Dh, 'sp:', 0Dh, 'ds:', 0Dh, 'es:', 0Dh
+            db  'ss:', 0Dh, 'ip:', 0Dh, 'cs:', 0Dh, 0Dh ; !!! MAKE SURE IT ENDS WITH DOUBLE 'ODh' !!!
 
 ;=============================================================================================================
 ; Calculates the start position for a frame in video mem
@@ -336,7 +294,7 @@ CalcFrameStart  proc
 
         add di, ax
 
-        shr di, 1               ; round to a multiple of 2
+        shr di, 1               ; round to a multiple of 2 (for video memory)
         shl di, 1
 
         pop dx
@@ -403,13 +361,13 @@ DrawLine    proc
         dec cx
 
         cld
-        lodsb           ; reading first byte of sequance to al
+        lodsb           ; reading first byte of sequence to al
         stosw           ; writing to video mem
 
         lodsb           ; reading second byte
         rep stosw       ; writing (cx - 2) times to video mem
 
-        lodsb           ; reading first byte of sequance to al
+        lodsb           ; reading first byte of sequence to al
         stosw           ; writing to video mem
 
         pop cx          ; save cx
@@ -511,7 +469,67 @@ itoa_hex    proc
 HexASCII:   db '0', '1', '2', '3', '4', '5', '6', '7'
             db '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
 
-VideoMemSegment equ     0b800h
-
 EOP:    db 0
+
+Main    proc
+
+
+; Rewriting INT09H in Table of Interruptions-----------------------------------------------------------
+
+    ; set es[bx] to a INT09H pointer
+        xor ax, ax
+        mov es, ax
+        mov cx, 1234h
+        mov dx, 5678h
+        mov bx, 09h * 04h
+
+    ; Save old handler of INT09H
+        mov ax, es:[bx]
+        mov word ptr old_int9_ofs, ax
+        mov ax, es:[bx+2]
+        mov word ptr old_int9_seg, ax
+
+    ; write new handler for INT09H
+    ; Forbid interrupts to avoid trying to handle interruption with wrong function address
+        cli
+        mov es:[bx], offset INT09H_StandIn
+        push cs
+        pop ax
+        mov es:[bx+2], ax
+        sti
+
+        ;int 09h
+; Rewriting INT08H in Table of Interruptions-----------------------------------------------------------
+
+    ; set es[bx] to a INT08H pointer
+        xor ax, ax
+        mov es, ax
+        mov bx, 08h * 04h
+
+    ; Save old handler of INT08H
+        mov ax, es:[bx]
+        mov word ptr old_int8_ofs, ax
+        mov ax, es:[bx+2]
+        mov word ptr old_int8_seg, ax
+
+    ; write new handler for INT08H
+    ; Forbid interrupts to avoid trying to handle interruption with wrong function address
+        cli
+        mov es:[bx], offset INT08H_StandIn
+        push cs
+        pop ax
+        mov es:[bx+2], ax
+        sti
+
+        call PrepareToDisplay
+
+; Terminate and Stay Resident--------------------------------------------------------------------------
+        mov ax, 3100h           ; TSR
+        mov dx, offset EOP      ; programm size in paragraphs (16 byte)
+        shr dx, 4
+        inc dx
+        int 21h
+
+        endp
+
 end     Start

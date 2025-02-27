@@ -4,25 +4,25 @@ org 100h
 locals @@
 
 Start:
-        mov bx, VideoMemSegment     ; set es to the beginnig of video mem segment
+        mov bx, VideoMemSegment         ; set es to the beginnig of video mem segment
         mov es, bx
 
-        mov si, CMD_args_start      ; pointer to command line arguments
+        mov si, CMD_args_start          ; pointer to command line arguments
 
         call SkipSpaces
 
-        call atoi10                 ; read frame length
+        call atoi_dec                   ; read frame length
         mov cx, ax
 
         call SkipSpaces
 
-        call atoi10                 ; read frame height
+        call atoi_dec                   ; read frame height
         mov dx, ax
 
         call SkipSpaces
 
         push dx
-        call atoi16                 ; read frame color
+        call atoi_hex                  ; read frame color
         pop dx
 
         mov ah, al
@@ -31,7 +31,7 @@ Start:
         call SkipSpaces
 
         push dx
-        call atoi10                 ; get sequence start position
+        call atoi_dec                 ; get sequence start position
 
         mov dl, 9
         mul dl
@@ -356,6 +356,8 @@ atoi_hex        proc
 
         ret
         endp
+
+Atoi_res        dw      0
 
 CMD_args_start  equ     0081h
 VideoMemSegment equ     0b800h
