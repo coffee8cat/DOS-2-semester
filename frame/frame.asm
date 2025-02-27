@@ -7,6 +7,40 @@ Start:
         mov bx, VideoMemSegment         ; set es to the beginnig of video mem segment
         mov es, bx
 
+        call ReadCMD_args
+        push ax
+
+        call SkipSpaces
+
+        push dx
+        call GetSequence
+        pop dx
+
+        call CalcFrameStart
+        pop ax
+
+        push di
+        call DrawFrame
+        pop di
+
+        push ax
+        call PrepareToWriteString
+        pop ax
+
+        call WriteString
+
+        mov ah, 4ch				; DOS Fn 4ch = exit(al)
+        int 21h					; DOS Fn 21h = system(ah)
+;=============================================================================================================
+; Prepare params and calculate the position for displaying the string centered in a frame
+; Entry:    si - pointer to string with sequence number in cmd args
+;           cx - length of the frame
+;           dx - height of the frame
+; Exit:     si - pointer to the sequence
+; Destr:    ax, bx, dx, si
+;=============================================================================================================
+ReadCMD_args    proc
+
         mov si, CMD_args_start          ; pointer to command line arguments
 
         call SkipSpaces
@@ -26,12 +60,21 @@ Start:
         pop dx
 
         mov ah, al
-        push ax
 
-        call SkipSpaces
+        ret
+        endp
 
-        push dx
-        call atoi_dec                 ; get sequence start position
+;=============================================================================================================
+; Prepare params and calculate the position for displaying the string centered in a frame
+; Entry:    si - pointer to string with sequence number in cmd args
+;           cx - length of the frame
+;           dx - height of the frame
+; Exit:     si - pointer to the sequence
+; Destr:    ax, bx, dx, si
+;=============================================================================================================
+GetSequence     proc
+
+        call atoi_dec                   ; get sequence start position
 
         mov dl, 9
         mul dl
@@ -43,7 +86,7 @@ Start:
         ja  @@not_custom_sequence
 
         call SkipSpaces
-        add bx, 09h                 ; move bx to position after sequence in command line args
+        add bx, 09h                     ; move bx to position after sequence in command line args
         jmp @@endif
 
 @@not_custom_sequence:
@@ -52,20 +95,18 @@ Start:
 
 @@endif:
 
-; Making a frame --------------------------
-        pop dx
+        ret
+        endp
 
-        call CalcFrameStart
-        pop ax
-
-        push di
-        call DrawFrame
-        pop di
-
-        push ax
-; -----------------------------------------
-
-; Prepare for writing a string ------------
+;=============================================================================================================
+; Prepare params and calculate the position for displaying the string centered in a frame
+; Entry:    si - pointer to a string to display
+;           cx - length of the frame
+;           dx - height of the frame
+; Exit:     di
+; Destr:    ax, bx, cx, dx, si, di
+;=============================================================================================================
+PrepareToWriteString    proc
 
         mov si, bx              ; restore si
         call SkipSpaces
@@ -83,11 +124,8 @@ Start:
 
         call CalcStringStart
 
-        pop ax
-        call WriteString
-
-        mov ah, 4ch				; DOS Fn 4ch = exit(al)
-        int 21h					; DOS Fn 21h = system(ah)
+        ret
+        endp
 
 ;=============================================================================================================
 ; Calculates the start position for a frame in video mem
