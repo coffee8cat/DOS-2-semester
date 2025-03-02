@@ -10,6 +10,9 @@ Start:
         mov ah, 4ch				; DOS Fn 4ch = exit(al)
         int 21h					; DOS Fn 21h = system(ah)
 
+BuffSize        equ     10h
+CanarySize      equ     04h
+
 ;======================================================================================================
 ;
 ; Entry: None
@@ -88,12 +91,13 @@ StringOff   dw 0
 ;======================================================================================================
 getns   proc
 
-        push sp
-        sub sp, 10h
+        sub sp, Buffsize
+
+        call Set_Canary_Protect
 
         mov bx, sp
 
-        mov ch, 1Eh     ; 13 + 17
+        mov ch, 0Dh + BuffSize + 2
         mov cl, 0Dh                 ; enter char - end of input
 
 @@loop_cond_check:
@@ -115,8 +119,7 @@ getns   proc
 
 @@loop_end:
 
-        add sp, 10h
-        pop sp
+        add sp, Buffsize
 
         mov bx, offset Authorization_flag
         mov cs:[bx], 1
@@ -130,5 +133,55 @@ Wrong_Password_Message  db 'Wrong Password! Access denied', 0Ah, 0Dh
 Access_Message          db 'Welcome, tryhard! May the force be with you...', 0Ah, 0Dh
 
 Authorization_flag      db 0
+
+;======================================================================================================
+; Set Canary protection on the last 4 bytes in buffer of previous stack frame
+; Therefore calling function must reserve Buffsize bytes before Setting Canary Protection
+; Entry: None
+; Exit:  None
+; Dstr: bx, cl, si
+;======================================================================================================
+Set_Canary_Protect  proc
+
+        ; save ret adress for this func, otherwise it will be overwritten as placed in mem under sp
+        mov bx, sp
+        mov word ptr cx, ss:[bx]
+        mov word ptr cs:[offset Ret_Ad_saved], cx
+
+        ; 2 bytes are already in stack frame of this func as return adress
+        ; 2 + Buffsize is alredy a ret adress of previous func
+        ; bx == sp will be used as a cond for the end of setting canary
+        add sp, 2 + Buffsize - 1 - CanarySize
+        add bx, 2 + Buffsize - 1
+
+        mov si, offset Canary
+        add si, CanarySize  - 1         ; Writing Canary backwards
+
+@@for_cond_check:
+        cmp bx, sp
+        je @@for_end
+
+        mov cl, cs:[si]
+        mov ss:[bx], cl                 ; while (bx != sp) { ss[bx--] = cs[si--]; }
+        dec bx
+        dec si
+
+        jmp @@for_cond_check
+
+@@for_end:
+        ; restore sp
+        sub sp, 2 + Buffsize - 1 - CanarySize
+        sub bx, 2 + Buffsize - 1 - CanarySize
+
+        ; restore ret adress
+        mov word ptr si, offset Ret_Ad_saved
+        mov word ptr cx, cs:[si]
+        mov word ptr ss:[bx], cx
+
+        ret
+        endp
+
+Ret_Ad_saved    dw 0
+Canary          db 'jinn'
 
 end     Start
