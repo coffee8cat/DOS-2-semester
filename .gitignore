@@ -1,5 +1,4 @@
 *.COM
 *.MAP
-*.OBJ
-*.OBJ
 *.LST
+*.ASM
