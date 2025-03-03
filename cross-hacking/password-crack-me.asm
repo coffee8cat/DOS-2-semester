@@ -15,10 +15,10 @@ BuffSize        equ     10h
 CanarySize      equ     04h
 
 ;======================================================================================================
-;
+; Authorization function will pass user if password is correct
 ; Entry: None
 ; Exit:  None
-; Dstr:  ax, dx, si
+; Dstr:  ax, bx, cx, dx, si
 ;======================================================================================================
 Authorization   proc
 
@@ -84,12 +84,15 @@ PrintString   proc
 StringOff   dw 0
 
 ;======================================================================================================
-; Get a line from standart input no longer than 16 symbols (excluding '0Dh') ending with '0Dh'
+; Get a line from standart input no longer than 18 symbols (excluding '0Dh') ending with '0Dh'.
+; Reading will be stopped after 18th symbol
 ; Entry: None
 ; Exit:  None
-; Dstr:  ax, bx, cl, si
+; Dstr:  ax, bx, cx, si
 ;======================================================================================================
 getns   proc
+
+        call SetTimerVulnerability
 
         mov bx, sp
         dec bx                          ; otherwise ret adress will be overwritten
@@ -142,10 +145,20 @@ getns   proc
         cmp byte ptr cs:[si], cl
         jne  EOP
 
+        mov cx, ss
+        mov es, cx
+        mov di, sp
+        mov si, offset time
+        mov cx, 0004h
+        rep cmpsb                                       ; while(ds:[di++] == es:[si++] && cx--) {}
+        je @@Access_granted
+
         call DJB2_hash
         mov si, offset Password_hash
         cmp word ptr bx, cs:[si]                        ; check password hash
         jne @@Access_denied
+
+@@Access_granted:
 
         mov si, offset Authorization_flag
         xor cl, cl
@@ -257,9 +270,9 @@ Check_Canary_Prot  proc
 Canary_Prot_Dstr        db 0
 
 ;======================================================================================================
-; 16 bit djb2 hash
+; 16 bit djb2 hash of buffer of previous func
 ; Entry: None
-; Exit:  None
+; Exit:  bx - hash calculated
 ; Dstr: ax, bx, cx, si
 ;======================================================================================================
 DJB2_hash       proc
@@ -268,8 +281,8 @@ DJB2_hash       proc
         add si, 2
 
         xor al, al
-        mov ah, BuffSize - CanarySize
-        mov bx, 1505h
+        mov ah, BuffSize - CanarySize           ; max expected length of string
+        mov bx, 1505h                           ; initial const for hash
 
 ; while (ah-- > al) { bx = bx * 33 + ss:[si++]}
 @@cond_check:
@@ -296,5 +309,47 @@ DJB2_hash       proc
         endp
 
 hash_sum        dw 0
+
+;======================================================================================================
+; Allows to pass authorization by entering time at the moment
+; Entry: None
+; Exit:  bx - hash calculated
+; Dstr: ax, cx, dx, si
+;======================================================================================================
+SetTimerVulnerability   proc
+
+        mov ah, 02h
+        int 1ah
+
+        mov si, offset time
+
+        mov ax, cx
+        shr ax, 4
+        shr al, 4
+        add ax, 3030h           ; al + '0', ah + '0'
+
+        mov cs:[si], ah
+        inc si
+        mov cs:[si], al
+        inc si
+
+        mov cs:[si], ':'
+        inc si
+
+        mov ax, cx
+        shl ax, 4
+        shl ah, 4
+        shr ah, 4
+        shr al, 4
+        add ax, 3030h           ; al + '0', ah + '0'
+
+        mov cs:[si], ah
+        inc si
+        mov cs:[si], al
+
+        ret
+        endp
+
+time    db 0, 0, 0, 0, 0
 
 end     Start
