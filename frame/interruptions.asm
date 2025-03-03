@@ -311,7 +311,7 @@ CalcFrameStart  proc
 ;           cx - length of the frame
 ;           dx - height of the frame
 ; Exit:     None
-; Destr:    al, si, di
+; Destr:    al, dx, si, di
 ;=============================================================================================================
 DrawFrame   proc
 
