@@ -3,3 +3,11 @@
 *.OBJ
 *.OBJ
 *.LST
+<<<<<<< Updated upstream
+=======
+*.ASM
+*.exe
+*.log
+*.dmp
+/cross-hacking/patcher/obj
+>>>>>>> Stashed changes
