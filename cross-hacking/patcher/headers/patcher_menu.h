@@ -28,11 +28,11 @@ struct layout_t
 
 int patcher_graphics_init();
 int patcher_graphics_dtor();
-void patcher_prepare_to_display_window();
-/*
-int patcher_run_menu(layout_t* menu);
-int patcher_draw_menu(layout_t* *menu, size_t highlighted);
-*/
+
+void patcher_start_menu();
+int patcher_run_menu (layout_t* menu);
+int patcher_draw_menu(layout_t* menu);
+
 bool is_in(point_t *point, rectangle_t *rect);
 double get_main_menu_box_center_y(size_t number);
 int play_patcher_soundtrack(const char* soundtrack_path);

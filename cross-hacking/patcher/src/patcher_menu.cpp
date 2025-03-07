@@ -9,10 +9,15 @@ static const size_t ButtonsNumber = 1;
 static double ButtonLength = 300;
 static double ButtonHeight = 200;
 
+static const COLORREF TextColor = RGB(0xff, 0xff, 0xff);
+static const COLORREF BoxColor  = RGB(0x00, 0x00, 0x00);
+
 int patcher_graphics_init()
 {
     txCreateWindow(WindowLength, WindowHeight);
-    WindowBackground = txLoadImage("alchemist.bmp");
+    WindowBackground = txLoadImage("menu_resources\\giant.bmp");
+    assert(WindowBackground);
+
     txBitBlt(txDC(), 0, 0, WindowLength, WindowHeight, WindowBackground);
 
     return 0;
@@ -27,9 +32,10 @@ int patcher_graphics_dtor()
     return 0;
 }
 
-void patcher_prepare_to_display_window()
+void patcher_start_menu()
 {
-    //txBitBlt(txDC(), 0, 0, WindowLength, WindowHeight, WindowBackground);
+    txBitBlt(txDC(), 0, 0, WindowLength, WindowHeight, WindowBackground);
+    txRedrawWindow();
     rectangle_t rectangles[ButtonsNumber] = {};
     for(size_t i = 0; i < ButtonsNumber; i++)
     {
@@ -48,84 +54,79 @@ void patcher_prepare_to_display_window()
         .number = ButtonsNumber
     };
 
-    //patcher_run_menu(&menu);
+    patcher_run_menu(&menu);
 }
-/*
+
+
 int patcher_run_menu(layout_t* menu)
 {
     assert(menu);
 
-txBegin();
-    akinator_draw_menu(menu, *chosen_case);
-    while(true) {
+    txBegin();
+    patcher_draw_menu(menu);
+    while(true)
+    {
         POINT   tx_mouse_pos   = txMousePos();
-        point_t mouse_position = {.x = (double)tx_mouse_pos.x,
-                                  .y = (double)tx_mouse_pos.y};
+        point_t mouse_position =
+        {
+            .x = (double)tx_mouse_pos.x,
+            .y = (double)tx_mouse_pos.y
+        };
+
         bool is_set     = false;
         bool is_running = true;
-        for(size_t i = 0; i < menu->number; i++) {
-            if(is_in(&mouse_position, menu->button_boxes + i)) {
-                *chosen_case = i;
-                is_set = true;
-                if(txGetAsyncKeyState(VK_LBUTTON)) {
-                    is_running = false;
-                }
+
+        if(is_in(&mouse_position, menu -> buttons))
+        {
+            if(txGetAsyncKeyState(VK_LBUTTON))
+            {
+                printf("Clicked button\n");
+                is_running = false;
             }
         }
-        if(!is_set) {
-            *chosen_case = menu->number;
-        }
-        if(!is_running) {
-            akinator_draw_menu(menu, menu->number);
-            break;
-        }
-        akinator_draw_menu(menu, *chosen_case);
+
+        patcher_draw_menu(menu);
     }
     txEnd();
-    return AKINATOR_SUCCESS;
+    return 0;
 }
-*/
 
-/*
-int patcher_draw_menu(akinator_menu_t *menu, size_t highlighted)
+int patcher_draw_menu(layout_t* menu)
 {
-    for(size_t i = 0; i < menu->number; i++) {
-        COLORREF fill_color = BoxColor;
-        COLORREF color      = BoxColor;
-        if(i == highlighted) {
-            fill_color = HighlightedBoxColor;
-            color = HighlightedBoxColor;
-        }
+    assert(menu);
 
-        txSetColor(color);
-        txSetFillColor(fill_color);
-        rectangle_t *box_rectangle = menu->button_boxes + i;
-        txRectangle(box_rectangle->left,
-                    box_rectangle->bottom,
-                    box_rectangle->right,
-                    box_rectangle->top);
+    COLORREF fill_color = BoxColor;
+    COLORREF color      = BoxColor;
 
-        txSetColor(TextColor);
-        txDrawText(box_rectangle->left,
-                   box_rectangle->bottom,
-                   box_rectangle->right,
-                   box_rectangle->top,
-                   menu->labels[i]);
-    }
+    txSetColor(color);
+    txSetFillColor(fill_color);
+    rectangle_t *box_rectangle = menu -> buttons;
+    txRectangle(box_rectangle -> left,
+                box_rectangle -> bottom,
+                box_rectangle -> right,
+                box_rectangle -> top);
+
+    txSetColor(TextColor);
+    txDrawText(box_rectangle -> left,
+               box_rectangle -> bottom,
+               box_rectangle -> right,
+               box_rectangle -> top,
+               menu -> labels[0]);
+
     txRedrawWindow();
 
     return 0;
 }
-*/
+
 
 bool is_in(point_t *point, rectangle_t *rect)
 {
-    if(point->x < rect->left ||
-       point->x > rect->right) {
+    if(point -> x < rect -> left ||
+       point -> x > rect -> right) {
         return false;
     }
-    if(point->y < rect->bottom ||
-       point->y > rect->top) {
+    if(point -> y < rect -> bottom ||
+       point -> y > rect -> top) {
         return false;
     }
 

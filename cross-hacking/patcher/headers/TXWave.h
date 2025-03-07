@@ -313,7 +313,7 @@
              if (Win32::waveOutUnprepareHeader (waveOut, &waveHdr[i], sizeof (WAVEHDR)) == MMSYSERR_NOERROR)
                  {
                  next = &waveHdr[i];  // Free WAVEHDR found
-                 FREE (next->lpData);
+                 FREE (next -> lpData);
                  break;
                  }
 
@@ -428,14 +428,14 @@
          {
          WAVEHDR* wav = &waveHdr[i];
 
-         if (!(wav->dwFlags & WHDR_DONE)) continue;  // Buffer is not done yet
+         if (!(wav -> dwFlags & WHDR_DONE)) continue;  // Buffer is not done yet
 
          // Process the buffer recorded
 
          size_t pos = data.size();
-         data.resize (pos + MIN (wav->dwBytesRecorded / sizeof (txWaveSample_t), size - pos));
+         data.resize (pos + MIN (wav -> dwBytesRecorded / sizeof (txWaveSample_t), size - pos));
 
-         memcpy (&data[0] + pos, wav->lpData, (data.size() - pos) * sizeof (txWaveSample_t));
+         memcpy (&data[0] + pos, wav -> lpData, (data.size() - pos) * sizeof (txWaveSample_t));
 
          if (monitorProc && !monitorProc (waveIn, data, userData)) break;             // Monitor breaks the recording
 
@@ -445,8 +445,8 @@
 
          // Re-feed the queue with the buffer
 
-         wav->dwFlags         = 0;
-         wav->dwBytesRecorded = 0;
+         wav -> dwFlags         = 0;
+         wav -> dwBytesRecorded = 0;
 
          Win32::waveInPrepareHeader (waveIn, wav, sizeof (*wav)) == MMSYSERR_NOERROR asserted;
          Win32::waveInAddBuffer     (waveIn, wav, sizeof (*wav)) == MMSYSERR_NOERROR asserted;
@@ -552,26 +552,26 @@
 
          // Check file format and properties
 
-         if (wav->chunkId                != 0x46464952 /* 'RIFF' */)      FAILURE;
-         if (wav->format                 != 0x45564157 /* 'WAVE' */)      FAILURE;
-         if (wav->subchunk1Id            != 0x20746d66 /* 'fmt ' */)      FAILURE;
+         if (wav -> chunkId                != 0x46464952 /* 'RIFF' */)      FAILURE;
+         if (wav -> format                 != 0x45564157 /* 'WAVE' */)      FAILURE;
+         if (wav -> subchunk1Id            != 0x20746d66 /* 'fmt ' */)      FAILURE;
 
-         if (wav->pcm.wf.wFormatTag      != txWaveFormat.wFormatTag)      FAILURE;
-         if (wav->pcm.wf.nChannels       != txWaveFormat.nChannels)       FAILURE;
-         if (wav->pcm.wf.nSamplesPerSec  != txWaveFormat.nSamplesPerSec)  FAILURE;
-         if (wav->pcm.wf.nAvgBytesPerSec != txWaveFormat.nAvgBytesPerSec) FAILURE;
-         if (wav->pcm.wf.nBlockAlign     != txWaveFormat.nBlockAlign)     FAILURE;
+         if (wav -> pcm.wf.wFormatTag      != txWaveFormat.wFormatTag)      FAILURE;
+         if (wav -> pcm.wf.nChannels       != txWaveFormat.nChannels)       FAILURE;
+         if (wav -> pcm.wf.nSamplesPerSec  != txWaveFormat.nSamplesPerSec)  FAILURE;
+         if (wav -> pcm.wf.nAvgBytesPerSec != txWaveFormat.nAvgBytesPerSec) FAILURE;
+         if (wav -> pcm.wf.nBlockAlign     != txWaveFormat.nBlockAlign)     FAILURE;
 
-         if (wav->pcm.wBitsPerSample     != txWaveFormat.wBitsPerSample)  FAILURE;
+         if (wav -> pcm.wBitsPerSample     != txWaveFormat.wBitsPerSample)  FAILURE;
 
          // Skip metadata
 
-         unsigned metaSize = (wav->subchunk1Size == sizeof (PCMWAVEFORMAT) + 2)? *(short*)&wav->subchunk2Id : 0;
-         fread (&wav->subchunk2Id, 1, metaSize, f) == metaSize asserted;
+         unsigned metaSize = (wav -> subchunk1Size == sizeof (PCMWAVEFORMAT) + 2)? *(short*)&wav -> subchunk2Id : 0;
+         fread (&wav -> subchunk2Id, 1, metaSize, f) == metaSize asserted;
 
          // Now we at waveform data section
 
-         if (wav->subchunk2Id != 0x61746164 /* 'data' */) FAILURE;
+         if (wav -> subchunk2Id != 0x61746164 /* 'data' */) FAILURE;
 
          // Read the waveform data
 

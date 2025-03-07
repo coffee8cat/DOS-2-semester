@@ -9,9 +9,16 @@ void patch()
     size_t file_size = get_file_size(fp);
     char* file_data = read_file(fp);
 
-    file_data[16*10 + 14] = char(9*16);
-    file_data[16*10 + 15] = char(9*16);
+    size_t fill_pos = 10 * 16 + 14;         // pos of jne for passing authorization
+    //size_t fill_len = 2                     // jne length
+    char fill_value = 9 * 16;               // nop code
 
+    if (file_data[fill_pos] != fill_value || file_data[fill_pos + 1] != fill_value)
+    {
+        file_data[fill_pos]     = fill_value;
+        file_data[fill_pos + 1] = fill_value;
+    }
+    else { printf("Already patched\n"); }
 
     if (!fclose(fp)) { fprintf(stderr, "Could not close file after patch\n"); }
 
